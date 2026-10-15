@@ -31,14 +31,6 @@ function gridToScreen(gx, gy) {
   };
 }
 
-function screenToGrid(sx, sy) {
-  const dx = sx - ORIGIN_X;
-  const dy = sy - ORIGIN_Y;
-  const gx = (dx / (TILE_W / 2) + dy / (TILE_H / 2)) / 2;
-  const gy = (dy / (TILE_H / 2) - dx / (TILE_W / 2)) / 2;
-  return { x: Math.floor(gx), y: Math.floor(gy) };
-}
-
 // ================== 主场景 ==================
 function MainScene() {
   Phaser.Scene.call(this, { key: 'MainScene' });
@@ -64,18 +56,44 @@ MainScene.prototype.create = function() {
     }
   }
 
-  // 2. 创建玩家（老板小人，色块占位）
-  // 初始位置放在地图中间 (4,4)
+  // 2. 绘制基础餐厅设施（色块占位，对应豆包数据表）
+  // 参数：gx, gy, 颜色, 名字
+  function addFacility(scene, gx, gy, color, label) {
+    const pos = gridToScreen(gx, gy);
+    // 设施绘制成一个稍微带点高度的方块
+    const rect = scene.add.rectangle(pos.x, pos.y - 10, 44, 30, color).setStrokeStyle(2, 0x000000);
+    rect.setDepth(gx + gy); // 等角深度排序
+    
+    // 名字标签
+    scene.add.text(pos.x, pos.y - 10, label, {
+      fontSize: '14px', color: '#ffffff', fontStyle: 'bold'
+    }).setOrigin(0.5).setDepth(gx + gy + 1);
+    
+    return rect;
+  }
+
+  // 点餐台 (前区)
+  addFacility(this, 2, 2, 0x3498db, '点餐台');
+  // 灶台 (后区)
+  addFacility(this, 8, 8, 0xe67e22, '灶台');
+  // 出餐口 (后区)
+  addFacility(this, 7, 7, 0x9b59b6, '出餐口');
+  // 餐桌 1
+  addFacility(this, 4, 5, 0xf1c40f, '餐桌');
+  // 餐桌 2
+  addFacility(this, 6, 3, 0xf1c40f, '餐桌');
+  // 餐桌 3
+  addFacility(this, 5, 7, 0xf1c40f, '餐桌');
+
+  // 3. 创建玩家（老板小人）
   this.playerGridX = 4;
   this.playerGridY = 4;
   
   const pos = gridToScreen(this.playerGridX, this.playerGridY);
-  
-  // 玩家用蓝色方块表示，带金色边框
   this.player = this.add.rectangle(pos.x, pos.y - 16, 32, 32, 0x4a90e2).setStrokeStyle(2, 0xffcc66);
-  this.player.setDepth(10); // 确保在网格上方
+  this.player.setDepth(this.playerGridX + this.playerGridY + 1); // 深度排序
 
-  // 3. 创建虚拟摇杆
+  // 4. 创建虚拟摇杆
   this.joyBase = this.add.circle(150, 1100, 80, 0xffffff, 0.2).setDepth(100);
   this.joyKnob = this.add.circle(150, 1100, 40, 0xffcc66, 0.8).setDepth(101);
   
@@ -87,7 +105,6 @@ MainScene.prototype.create = function() {
 
   // 摇杆触摸事件
   this.input.on('pointerdown', (pointer) => {
-    // 如果触摸在左下方摇杆区域
     if (pointer.x < 300 && pointer.y > 900) {
       this.isJoyActive = true;
       this.joyStartX = pointer.x;
@@ -103,17 +120,14 @@ MainScene.prototype.create = function() {
     const maxDist = 60;
     
     if (dist > 0) {
-      // 限制摇杆偏移量
       const angle = Math.atan2(dy, dx);
       const clampedDist = Math.min(dist, maxDist);
       const moveDx = Math.cos(angle) * clampedDist;
       const moveDy = Math.sin(angle) * clampedDist;
       
-      // 更新摇杆视觉位置
       this.joyKnob.x = this.joyStartX + moveDx;
       this.joyKnob.y = this.joyStartY + moveDy;
       
-      // 计算移动比例
       this.moveX = moveDx / maxDist;
       this.moveY = moveDy / maxDist;
     }
@@ -127,44 +141,38 @@ MainScene.prototype.create = function() {
     this.joyKnob.y = 1100;
   });
 
-  // 键盘支持（方便电脑测试）
+  // 键盘支持
   this.cursors = this.input.keyboard.createCursorKeys();
   this.keys = this.input.keyboard.addKeys('W,A,S,D');
 };
 
 MainScene.prototype.update = function(time, delta) {
-  const speed = 0.005; // 移动速度
+  const speed = 0.005;
   let dx = this.moveX;
   let dy = this.moveY;
 
-  // 键盘输入
   if (this.cursors.left.isDown || this.keys.A.isDown) dx = -1;
   if (this.cursors.right.isDown || this.keys.D.isDown) dx = 1;
   if (this.cursors.up.isDown || this.keys.W.isDown) dy = -1;
   if (this.cursors.down.isDown || this.keys.S.isDown) dy = 1;
 
-  // 应用移动
   if (dx !== 0 || dy !== 0) {
-    // 将屏幕移动方向转换为网格移动方向（等角视角适配）
     const gridDx = (dx / (TILE_W / 2) + dy / (TILE_H / 2)) / 2;
     const gridDy = (dy / (TILE_H / 2) - dx / (TILE_W / 2)) / 2;
 
-    // 更新网格坐标
     this.playerGridX += gridDx * delta * speed;
     this.playerGridY += gridDy * delta * speed;
 
-    // 边界限制（0 到 9）
     this.playerGridX = Phaser.Math.Clamp(this.playerGridX, 0, GRID_W - 1);
     this.playerGridY = Phaser.Math.Clamp(this.playerGridY, 0, GRID_H - 1);
 
-    // 更新屏幕位置
     const pos = gridToScreen(this.playerGridX, this.playerGridY);
     this.player.x = pos.x;
     this.player.y = pos.y - 16;
+    this.player.setDepth(this.playerGridX + this.playerGridY + 1); // 动态深度排序
   }
 };
 
-// ================== 游戏配置 ==================
 const config = {
   type: Phaser.AUTO,
   parent: 'game',
