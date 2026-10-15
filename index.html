@@ -22,6 +22,9 @@ const GRID_H = 17;
 const ORIGIN_X = 472;
 const ORIGIN_Y = 220;
 
+const TOP_BAR_H = 90;
+const TIME_STEP_MS = 1250;
+
 function gridToScreen(gx, gy) {
   return {
     x: ORIGIN_X + (gx - gy) * (TILE_W / 2),
@@ -64,7 +67,7 @@ const FACILITY_LIST = [
   { gx: 1, gy: 5, color: 0x1abc9c, label: '咖啡机' },
   { gx: 2, gy: 5, color: 0x1abc9c, label: '冰淇淋机' },
   { gx: 3, gy: 5, color: 0x95a5a6, label: '菜单屏' },
-  { gx: 4, gy: 5, color: 0x7f8c8d, label: '工作电脑' },   // ★ 新增
+  { gx: 4, gy: 5, color: 0x7f8c8d, label: '工作电脑' },
   { gx: 0, gy: 8, color: 0x3498db, label: '外卖台' },
   { gx: 1, gy: 8, color: 0x3498db, label: '蛋糕柜' },
   { gx: 2, gy: 8, color: 0x3498db, label: '关东煮' },
@@ -108,20 +111,27 @@ MainScene.prototype.create = function() {
   this.menuOpen = false;
   this.menuPanelItems = null;
 
-  // ★ 菜单开关：每道菜默认启用
+  // 时间
+  this.gameMinutes = 360; // 06:00
+  this.gameDay = 1;
+  this.gameMonth = 1;
+  this.gameYear = 1;
+  this.timeAccum = 0;
+
+  // 等级
+  this.stars = 0;
+  this.level = 1;
+
+  // 菜品开关
   this.dishEnabled = {};
   const self = this;
   Object.keys(DISHES).forEach(function(name){ self.dishEnabled[name] = true; });
 
   this.queueSlots = [
-    { gx: 3, gy: 9 },
-    { gx: 3, gy: 10 },
-    { gx: 3, gy: 11 },
+    { gx: 3, gy: 9 }, { gx: 3, gy: 10 }, { gx: 3, gy: 11 },
   ];
   this.pickupSlots = [
-    { gx: 4, gy: 9 },
-    { gx: 4, gy: 10 },
-    { gx: 4, gy: 11 },
+    { gx: 4, gy: 9 }, { gx: 4, gy: 10 }, { gx: 4, gy: 11 },
   ];
 
   this.tableSlots = FACILITY_LIST
@@ -157,7 +167,6 @@ MainScene.prototype.create = function() {
     fontSize: '12px', color: '#99ccff'
   }).setOrigin(0.5).setDepth(3);
 
-  // 门标记
   this.addDoorMarker(4, 8);
   this.addDoorMarker(7, 8);
 
@@ -186,17 +195,18 @@ MainScene.prototype.create = function() {
   this.server  = this.makeEmployee(2, 10, 0xf1c40f, '服');
   this.cleaner = this.makeEmployee(6, 9,  0xffffff, '洗');
 
-  // 摇杆
-  this.joyBase = this.add.circle(150, 1100, 80, 0xffffff, 0.2).setDepth(100);
-  this.joyKnob = this.add.circle(150, 1100, 40, 0xffcc66, 0.8).setDepth(101);
+  // 摇杆（上移到 y=1040）
+  this.joyBase = this.add.circle(130, 1040, 70, 0xffffff, 0.2).setDepth(100);
+  this.joyKnob = this.add.circle(130, 1040, 35, 0xffcc66, 0.8).setDepth(101);
   this.isJoyActive = false;
-  this.joyStartX = 150;
-  this.joyStartY = 1100;
+  this.joyStartX = 130;
+  this.joyStartY = 1040;
   this.moveX = 0;
   this.moveY = 0;
+  const joyMaxDist = 55;
 
   this.input.on('pointerdown', function(pointer){
-    if (pointer.x < 300 && pointer.y > 900) {
+    if (pointer.x < 280 && pointer.y > 900 && pointer.y < 1150) {
       self.isJoyActive = true;
       self.joyStartX = pointer.x;
       self.joyStartY = pointer.y;
@@ -207,77 +217,94 @@ MainScene.prototype.create = function() {
     const dx = pointer.x - self.joyStartX;
     const dy = pointer.y - self.joyStartY;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    const maxDist = 60;
     if (dist > 0) {
       const angle = Math.atan2(dy, dx);
-      const clampedDist = Math.min(dist, maxDist);
-      const moveDx = Math.cos(angle) * clampedDist;
-      const moveDy = Math.sin(angle) * clampedDist;
+      const cd = Math.min(dist, joyMaxDist);
+      const moveDx = Math.cos(angle) * cd;
+      const moveDy = Math.sin(angle) * cd;
       self.joyKnob.x = self.joyStartX + moveDx;
       self.joyKnob.y = self.joyStartY + moveDy;
-      self.moveX = moveDx / maxDist;
-      self.moveY = moveDy / maxDist;
+      self.moveX = moveDx / joyMaxDist;
+      self.moveY = moveDy / joyMaxDist;
     }
   });
   this.input.on('pointerup', function(){
     self.isJoyActive = false;
     self.moveX = 0;
     self.moveY = 0;
-    self.joyKnob.x = 150;
-    self.joyKnob.y = 1100;
+    self.joyKnob.x = 130;
+    self.joyKnob.y = 1040;
   });
 
-  this.interactButton = this.add.circle(600, 1100, 60, 0xe74c3c, 0.85).setDepth(100).setVisible(false);
+  // 互动按钮
+  this.interactButton = this.add.circle(590, 1040, 55, 0xe74c3c, 0.85).setDepth(100).setVisible(false);
   this.interactButton.setInteractive({ useHandCursor: true });
-  this.interactText = this.add.text(600, 1100, '接单+收钱', {
-    fontSize: '20px', color: '#ffffff', fontStyle: 'bold'
+  this.interactText = this.add.text(590, 1040, '接单+收钱', {
+    fontSize: '18px', color: '#ffffff', fontStyle: 'bold'
   }).setOrigin(0.5).setDepth(101).setVisible(false);
 
-  this.statusText = this.add.text(360, 40, '走到点餐台接单', {
+  // ===== 顶部状态栏 =====
+  this.add.rectangle(360, TOP_BAR_H/2, 720, TOP_BAR_H, 0x000000, 0.75).setDepth(400);
+  this.add.rectangle(360, TOP_BAR_H, 720, 2, 0xffcc66, 0.5).setDepth(401);
+  // 时间
+  this.timeText = this.add.text(20, 22, '1年1月 06:00', {
     fontSize: '22px', color: '#ffffff', fontStyle: 'bold'
-  }).setOrigin(0.5).setDepth(200);
-  this.coinText = this.add.text(680, 90, '金币: 0', {
+  }).setDepth(402);
+  this.timeText2 = this.add.text(20, 52, '第1天', {
+    fontSize: '16px', color: '#aaaaaa'
+  }).setDepth(402);
+  // 等级+星星
+  this.levelText = this.add.text(360, 15, 'Lv.1', {
+    fontSize: '24px', color: '#ffcc66', fontStyle: 'bold'
+  }).setOrigin(0.5, 0).setDepth(402);
+  this.starText = this.add.text(360, 50, '⭐ 0 / 25', {
+    fontSize: '16px', color: '#ffff99'
+  }).setOrigin(0.5, 0).setDepth(402);
+  // 金币
+  this.coinText = this.add.text(700, 22, '0 G', {
     fontSize: '22px', color: '#ffcc66', fontStyle: 'bold'
-  }).setOrigin(1, 0.5).setDepth(200);
-  this.queueText = this.add.text(20, 90, '点餐队: 0', {
-    fontSize: '18px', color: '#ff9999', fontStyle: 'bold'
-  }).setOrigin(0, 0.5).setDepth(200);
-  this.pickupQueueText = this.add.text(20, 120, '取餐队: 0', {
-    fontSize: '18px', color: '#99ccff', fontStyle: 'bold'
-  }).setOrigin(0, 0.5).setDepth(200);
-  this.dirtyText = this.add.text(20, 150, '脏盘: 0', {
-    fontSize: '18px', color: '#cccccc', fontStyle: 'bold'
-  }).setOrigin(0, 0.5).setDepth(200);
-  this.orderText = this.add.text(20, 180, '进行中订单: 0', {
-    fontSize: '18px', color: '#99ff99', fontStyle: 'bold'
-  }).setOrigin(0, 0.5).setDepth(200);
-  this.feedbackText = this.add.text(360, 160, '', {
+  }).setOrigin(1, 0).setDepth(402);
+  this.coinLabel = this.add.text(700, 52, '金钱', {
+    fontSize: '14px', color: '#aaaaaa'
+  }).setOrigin(1, 0).setDepth(402);
+
+  // 反馈文字
+  this.feedbackText = this.add.text(360, TOP_BAR_H + 40, '', {
     fontSize: '24px', color: '#ffcc66', fontStyle: 'bold'
   }).setOrigin(0.5).setDepth(200).setVisible(false);
 
-  // ★ 互动按钮：点餐台接单 OR 工作电脑打开菜单
+  // ===== 底部 5 按钮 =====
+  const btnLabels = ['建造', '公告栏', '观光', '店铺', '菜单'];
+  const btnColors = [0x3498db, 0x9b59b6, 0x1abc9c, 0xe67e22, 0xc0392b];
+  this.bottomButtons = [];
+  for (let i = 0; i < 5; i++) {
+    const cx = 100 + i * 130;
+    const cy = 1220;
+    const bg = this.add.rectangle(cx, cy, 116, 80, btnColors[i], 0.9)
+      .setStrokeStyle(2, 0xffcc66).setDepth(400);
+    bg.setInteractive({ useHandCursor: true });
+    const label = this.add.text(cx, cy, btnLabels[i], {
+      fontSize: '20px', color: '#ffffff', fontStyle: 'bold'
+    }).setOrigin(0.5).setDepth(401);
+    const idx = i;
+    bg.on('pointerdown', function(){
+      self.openBottomPanel(idx);
+    });
+    this.bottomButtons.push({ bg: bg, label: label });
+  }
+
+  // 互动按钮逻辑
   this.interactButton.on('pointerdown', function(){
-    if (!self.currentFacility) {
-      self.showFeedback('站到点餐台或电脑旁再试');
-      return;
-    }
-    // 工作电脑 → 菜单管理
+    if (!self.currentFacility) return;
     if (self.currentFacility.label === '工作电脑') {
       self.openMenuPanel();
       return;
     }
-    // 点餐台 → 接单
     if (self.currentFacility.label !== '点餐台') return;
     const customer = self.customers.find(function(c){ return c.state === 'waiting'; });
-    if (!customer) {
-      self.showFeedback('还没有顾客排队');
-      return;
-    }
+    if (!customer) { self.showFeedback('还没有顾客排队'); return; }
     const dish = self.pickRandomDish();
-    if (!dish) {
-      self.showFeedback('菜单全关了！去电脑开几个菜');
-      return;
-    }
+    if (!dish) { self.showFeedback('菜单全关了！去电脑开几个菜'); return; }
     const info = DISHES[dish];
     const spot = self.pickupSlots.find(function(s){
       return !self.customers.some(function(c){
@@ -288,9 +315,7 @@ MainScene.prototype.create = function() {
     const order = {
       dish: dish, price: info.price,
       station: info.station, type: info.type,
-      customer: customer,
-      delivery: 'pickup',
-      stage: 'new'
+      customer: customer, delivery: 'pickup', stage: 'new'
     };
     self.orders.push(order);
     customer.order = order;
@@ -301,7 +326,7 @@ MainScene.prototype.create = function() {
     }
     customer.bubble.setText('?');
     self.coinCount += info.price;
-    self.coinText.setText('金币: ' + self.coinCount);
+    self.updateCoinDisplay();
     self.showFeedback('收银成功：' + dish + ' +' + info.price);
     self.updateOrderCount();
   });
@@ -310,7 +335,33 @@ MainScene.prototype.create = function() {
   this.keys = this.input.keyboard.addKeys('W,A,S,D');
 };
 
-// ★ 随机取一道已开启的菜
+// ===== 更新金币显示 =====
+MainScene.prototype.updateCoinDisplay = function() {
+  this.coinText.setText(this.coinCount + ' G');
+};
+
+// ===== 更新等级/星星显示 =====
+MainScene.prototype.updateLevelDisplay = function() {
+  this.levelText.setText('Lv.' + this.level);
+  this.starText.setText('⭐ ' + this.stars + ' / 25');
+};
+
+// ===== 增加星星 =====
+MainScene.prototype.addStars = function(n) {
+  if (this.level >= 100) return;
+  this.stars += n;
+  while (this.stars >= 25 && this.level < 100) {
+    this.stars -= 25;
+    this.level += 1;
+    const reward = 200 * this.level;
+    this.coinCount += reward;
+    this.showFeedback('🎉 升级！Lv.' + this.level + ' +' + reward + 'G');
+  }
+  this.updateLevelDisplay();
+  this.updateCoinDisplay();
+};
+
+// ===== 随机取菜 =====
 MainScene.prototype.pickRandomDish = function() {
   const enabled = Object.keys(DISHES).filter(function(name){
     return this.dishEnabled[name];
@@ -319,18 +370,14 @@ MainScene.prototype.pickRandomDish = function() {
   return enabled[Math.floor(Math.random() * enabled.length)];
 };
 
-// ★ 菜单管理面板
+// ===== 菜单管理面板 =====
 MainScene.prototype.openMenuPanel = function() {
   if (this.menuOpen) return;
   this.menuOpen = true;
   const self = this;
   const items = [];
-
-  // 背景 + 边框
   items.push(this.add.rectangle(360, 640, 660, 1000, 0x000000, 0.93).setDepth(500));
   items.push(this.add.rectangle(360, 640, 660, 1000, 0x000000, 0).setStrokeStyle(4, 0xffcc66).setDepth(501));
-
-  // 标题
   items.push(this.add.text(360, 200, '菜单管理', {
     fontSize: '32px', color: '#ffcc66', fontStyle: 'bold'
   }).setOrigin(0.5).setDepth(502));
@@ -338,36 +385,30 @@ MainScene.prototype.openMenuPanel = function() {
     fontSize: '16px', color: '#aaaaaa'
   }).setOrigin(0.5).setDepth(502));
 
-  // 菜品列表
   const dishNames = Object.keys(DISHES);
-  const startY = 320;
-  const rowH = 68;
+  const startY = 320, rowH = 68;
   dishNames.forEach(function(name, idx){
     const col = idx % 2;
     const row = Math.floor(idx / 2);
     const x = 360 + (col === 0 ? -150 : 150);
     const y = startY + row * rowH;
     const enabled = self.dishEnabled[name];
-
     const itemBg = self.add.rectangle(x, y, 285, 58,
       enabled ? 0x1e5f2a : 0x5f1e1e, 0.85)
       .setStrokeStyle(2, enabled ? 0x33cc55 : 0xcc3333).setDepth(502);
     itemBg.setInteractive({ useHandCursor: true });
     itemBg.on('pointerdown', function(){
       self.dishEnabled[name] = !self.dishEnabled[name];
-      // 重建面板
       items.forEach(function(it){ it.destroy(); });
       self.menuOpen = false;
       self.openMenuPanel();
     });
     items.push(itemBg);
-
     items.push(self.add.text(x, y, (enabled ? '✅ ' : '❌ ') + name, {
       fontSize: '20px', color: '#ffffff', fontStyle: 'bold'
     }).setOrigin(0.5).setDepth(503));
   });
 
-  // 关闭按钮
   const closeBg = this.add.rectangle(360, 1060, 240, 64, 0xcc3333).setDepth(502);
   closeBg.setInteractive({ useHandCursor: true });
   closeBg.on('pointerdown', function(){
@@ -378,8 +419,64 @@ MainScene.prototype.openMenuPanel = function() {
   items.push(this.add.text(360, 1060, '关闭', {
     fontSize: '26px', color: '#ffffff', fontStyle: 'bold'
   }).setOrigin(0.5).setDepth(503));
-
   this.menuPanelItems = items;
+};
+
+// ===== 底部 5 个功能面板 =====
+MainScene.prototype.openBottomPanel = function(idx) {
+  if (this.menuOpen) return;
+  this.menuOpen = true;
+  const self = this;
+  const items = [];
+  const titles = ['建造', '公告栏', '观光', '店铺', '菜单'];
+  const title = titles[idx];
+
+  items.push(this.add.rectangle(360, 640, 660, 1000, 0x000000, 0.93).setDepth(500));
+  items.push(this.add.rectangle(360, 640, 660, 1000, 0x000000, 0).setStrokeStyle(4, 0xffcc66).setDepth(501));
+  items.push(this.add.text(360, 200, title, {
+    fontSize: '32px', color: '#ffcc66', fontStyle: 'bold'
+  }).setOrigin(0.5).setDepth(502));
+
+  if (idx === 4) {
+    // 菜单：显示所有菜品 + 价格 + 开关状态
+    items.push(this.add.text(360, 250, '菜品列表（只读）', {
+      fontSize: '16px', color: '#aaaaaa'
+    }).setOrigin(0.5).setDepth(502));
+    const dishNames = Object.keys(DISHES);
+    const startY = 310, rowH = 55;
+    dishNames.forEach(function(name, i){
+      const info = DISHES[name];
+      const enabled = self.dishEnabled[name];
+      const y = startY + i * rowH;
+      const color = enabled ? '#ffffff' : '#666666';
+      const status = enabled ? '✅' : '❌';
+      items.push(self.add.text(80, y, status + ' ' + name, {
+        fontSize: '18px', color: color
+      }).setDepth(502));
+      items.push(self.add.text(640, y, info.price + 'G', {
+        fontSize: '18px', color: '#ffcc66'
+      }).setOrigin(1, 0).setDepth(502));
+    });
+    items.push(this.add.text(360, 1030, '关闭', {
+      fontSize: '16px', color: '#aaaaaa'
+    }).setOrigin(0.5).setDepth(502));
+  } else {
+    // 其他面板：占位提示
+    items.push(this.add.text(360, 640, title + ' 功能\n\n开发中…', {
+      fontSize: '28px', color: '#ffffff', textAlign: 'center'
+    }).setOrigin(0.5).setDepth(502));
+  }
+
+  const closeBg = this.add.rectangle(360, 1120, 240, 64, 0xcc3333).setDepth(502);
+  closeBg.setInteractive({ useHandCursor: true });
+  closeBg.on('pointerdown', function(){
+    items.forEach(function(it){ it.destroy(); });
+    self.menuOpen = false;
+  });
+  items.push(closeBg);
+  items.push(this.add.text(360, 1120, '关闭', {
+    fontSize: '26px', color: '#ffffff', fontStyle: 'bold'
+  }).setOrigin(0.5).setDepth(503));
 };
 
 MainScene.prototype.addDoorMarker = function(gx, gy) {
@@ -391,7 +488,7 @@ MainScene.prototype.addDoorMarker = function(gx, gy) {
 };
 
 MainScene.prototype.updateOrderCount = function() {
-  this.orderText.setText('进行中订单: ' + this.orders.length);
+  this.orderText && this.orderText.setText('进行中订单: ' + this.orders.length);
 };
 
 MainScene.prototype.makeEmployee = function(gx, gy, color, tag) {
@@ -411,9 +508,7 @@ MainScene.prototype.makeEmployee = function(gx, gy, color, tag) {
   return emp;
 };
 
-MainScene.prototype.setEmployeeTag = function(emp, tag) {
-  emp.label.setText(tag);
-};
+MainScene.prototype.setEmployeeTag = function(emp, tag) { emp.label.setText(tag); };
 
 MainScene.prototype.drawSeparator = function(gy) {
   const left = gridToScreen(0, gy);
@@ -466,9 +561,7 @@ MainScene.prototype.findFacilityPos = function(label) {
 MainScene.prototype.updateChef = function(delta) {
   const chef = this.chef;
   if (chef.state === 'idle') {
-    const order = this.orders.find(function(o){
-      return o.type === 'back' && o.stage === 'new';
-    });
+    const order = this.orders.find(function(o){ return o.type === 'back' && o.stage === 'new'; });
     if (order) {
       const pos = this.findFacilityPos(order.station);
       if (pos) {
@@ -513,9 +606,7 @@ MainScene.prototype.updateWaiter = function(delta) {
       w.currentOrder = passOrder;
       passOrder.stage = 'waiter_taking';
     } else {
-      const frontOrder = this.orders.find(function(o){
-        return o.type === 'front' && o.stage === 'new';
-      });
+      const frontOrder = this.orders.find(function(o){ return o.type === 'front' && o.stage === 'new'; });
       if (frontOrder) {
         const pos = this.findFacilityPos(frontOrder.station);
         w.tx = pos.gx; w.ty = pos.gy;
@@ -564,24 +655,21 @@ MainScene.prototype.updateWaiter = function(delta) {
 MainScene.prototype.updateServer = function(delta) {
   const s = this.server;
   if (s.state === 'idle') {
-    const belledTable = this.tableSlots.find(function(t){ return t.bell; });
-    if (belledTable) {
+    const belled = this.tableSlots.find(function(t){ return t.bell; });
+    if (belled) {
       this.setEmployeeTag(s, '桌');
-      s.tx = belledTable.gx;
-      s.ty = belledTable.gy + 1;
-      s.currentTable = belledTable;
+      s.tx = belled.gx; s.ty = belled.gy + 1;
+      s.currentTable = belled;
       s.state = 'to_table_order';
       return;
     }
-    const tableOrderReady = this.orders.find(function(o){
-      return o.delivery === 'table' && o.stage === 'onPickup';
-    });
-    if (tableOrderReady) {
+    const tableReady = this.orders.find(function(o){ return o.delivery === 'table' && o.stage === 'onPickup'; });
+    if (tableReady) {
       this.setEmployeeTag(s, '桌');
       const pos = this.findFacilityPos('取餐台');
       s.tx = pos.gx; s.ty = pos.gy;
       s.state = 'to_pickup_table';
-      s.currentOrder = tableOrderReady;
+      s.currentOrder = tableReady;
       return;
     }
     if (this.dirtyTables.length > 0) {
@@ -595,11 +683,8 @@ MainScene.prototype.updateServer = function(delta) {
   }
 
   if (s.state === 'to_table_order') {
-    if (this.moveEmp(s, s.tx, s.ty, 0.01, delta)) {
-      s.state = 'taking_order'; s.timer = 1500;
-    }
-  }
-  else if (s.state === 'taking_order') {
+    if (this.moveEmp(s, s.tx, s.ty, 0.01, delta)) { s.state = 'taking_order'; s.timer = 1500; }
+  } else if (s.state === 'taking_order') {
     s.timer -= delta;
     if (s.timer <= 0) {
       const t = s.currentTable;
@@ -610,60 +695,47 @@ MainScene.prototype.updateServer = function(delta) {
           const order = {
             dish: dish, price: info.price,
             station: info.station, type: info.type,
-            delivery: 'table',
-            tableGx: t.gx, tableGy: t.gy,
+            delivery: 'table', tableGx: t.gx, tableGy: t.gy,
             stage: 'new'
           };
           this.orders.push(order);
           for (let i = 0; i < this.customers.length; i++) {
             const c = this.customers[i];
             if (c.tableGx === t.gx && c.tableGy === t.gy && c.state === 'seated') {
-              c.order = order;
-              c.orderedDish = dish;
-              c.state = 'waiting_food';
-              c.bubble.setText('⏳');
+              c.order = order; c.orderedDish = dish;
+              c.state = 'waiting_food'; c.bubble.setText('⏳');
             }
           }
           this.updateOrderCount();
           this.coinCount += info.price;
-          this.coinText.setText('金币: ' + this.coinCount);
+          this.updateCoinDisplay();
           this.showFeedback('桌边收银：' + dish + ' +' + info.price);
           t.bell = false;
         }
       }
       s.currentTable = null;
       const cashier = this.findFacilityPos('点餐台');
-      s.tx = cashier.gx;
-      s.ty = cashier.gy + 1;
+      s.tx = cashier.gx; s.ty = cashier.gy + 1;
       s.state = 'to_cashier';
     }
-  }
-  else if (s.state === 'to_cashier') {
-    if (this.moveEmp(s, s.tx, s.ty, 0.01, delta)) {
-      s.state = 'idle';
-    }
-  }
-  else if (s.state === 'to_pickup_table') {
+  } else if (s.state === 'to_cashier') {
+    if (this.moveEmp(s, s.tx, s.ty, 0.01, delta)) { s.state = 'idle'; }
+  } else if (s.state === 'to_pickup_table') {
     if (this.moveEmp(s, s.tx, s.ty, 0.01, delta)) {
       if (s.currentOrder) {
         s.tx = s.currentOrder.tableGx;
         s.ty = s.currentOrder.tableGy + 1;
         s.state = 'to_table_deliver';
-      } else {
-        s.state = 'idle';
-      }
+      } else { s.state = 'idle'; }
     }
-  }
-  else if (s.state === 'to_table_deliver') {
+  } else if (s.state === 'to_table_deliver') {
     if (this.moveEmp(s, s.tx, s.ty, 0.01, delta)) {
       if (s.currentOrder) {
         const order = s.currentOrder;
         for (let i = 0; i < this.customers.length; i++) {
           const c = this.customers[i];
           if (c.order === order && c.state === 'waiting_food') {
-            c.state = 'eating';
-            c.eatTimer = 2500;
-            c.bubble.setText('~');
+            c.state = 'eating'; c.eatTimer = 2500; c.bubble.setText('~');
           }
         }
         const idx = this.orders.indexOf(order);
@@ -673,8 +745,7 @@ MainScene.prototype.updateServer = function(delta) {
       }
       s.state = 'idle';
     }
-  }
-  else if (s.state === 'to_dirty_table') {
+  } else if (s.state === 'to_dirty_table') {
     if (this.moveEmp(s, s.tx, s.ty, 0.009, delta)) {
       if (s.currentTable) {
         this.dirtyTables.shift();
@@ -686,15 +757,13 @@ MainScene.prototype.updateServer = function(delta) {
       s.tx = pos.gx; s.ty = pos.gy;
       s.state = 'to_clean_area';
     }
-  }
-  else if (s.state === 'to_clean_area') {
+  } else if (s.state === 'to_clean_area') {
     if (this.moveEmp(s, s.tx, s.ty, 0.009, delta)) {
       this.dirtyPlates++;
-      this.dirtyText.setText('脏盘: ' + this.dirtyPlates);
+      this.dirtyText && this.dirtyText.setText('脏盘: ' + this.dirtyPlates);
       s.state = 'idle';
     }
   }
-
   this.updateEmployeeSprite(s);
 };
 
@@ -715,7 +784,7 @@ MainScene.prototype.updateCleaner = function(delta) {
   } else if (c.state === 'to_sink') {
     if (this.moveEmp(c, c.tx, c.ty, 0.009, delta)) {
       if (this.dirtyPlates > 0) this.dirtyPlates--;
-      this.dirtyText.setText('脏盘: ' + this.dirtyPlates);
+      this.dirtyText && this.dirtyText.setText('脏盘: ' + this.dirtyPlates);
       c.state = 'idle';
     }
   }
@@ -726,9 +795,7 @@ MainScene.prototype.findFreeOneTable = function() {
   for (let i = 0; i < this.tableSlots.length; i++) {
     const t = this.tableSlots[i];
     if (t.state !== 'free') continue;
-    const fac = this.facilities.find(function(f){
-      return f.gx === t.gx && f.gy === t.gy;
-    });
+    const fac = this.facilities.find(function(f){ return f.gx === t.gx && f.gy === t.gy; });
     if (fac && fac.label === '一人桌') return t;
   }
   return this.tableSlots.find(function(t){ return t.state === 'free'; });
@@ -738,9 +805,7 @@ MainScene.prototype.findFreeGroupTable = function() {
   for (let i = 0; i < this.tableSlots.length; i++) {
     const t = this.tableSlots[i];
     if (t.state !== 'free') continue;
-    const fac = this.facilities.find(function(f){
-      return f.gx === t.gx && f.gy === t.gy;
-    });
+    const fac = this.facilities.find(function(f){ return f.gx === t.gx && f.gy === t.gy; });
     if (fac && (fac.label === '两人桌' || fac.label === '四人桌')) return t;
   }
   return null;
@@ -757,7 +822,6 @@ MainScene.prototype.spawnSingle = function() {
   const self = this;
   const useTable = Math.random() < 0.4;
   const startPos = gridToScreen(4, 16);
-
   if (!useTable) {
     const freeSlot = this.queueSlots.find(function(slot){
       return !self.customers.some(function(c){
@@ -766,43 +830,31 @@ MainScene.prototype.spawnSingle = function() {
       });
     });
     if (!freeSlot) return;
-    const rect = this.add.rectangle(startPos.x, startPos.y - 14, 22, 22, 0xff6b6b).setStrokeStyle(2, 0x000000);
-    rect.setDepth(50);
+    const rect = this.add.rectangle(startPos.x, startPos.y - 14, 22, 22, 0xff6b6b).setStrokeStyle(2, 0x000000).setDepth(50);
     const bubble = this.add.text(startPos.x, startPos.y - 36, '...', {
-      fontSize: '12px', color: '#ffffff',
-      backgroundColor: '#000000aa', padding: { x: 3, y: 2 }
+      fontSize: '12px', color: '#ffffff', backgroundColor: '#000000aa', padding: { x: 3, y: 2 }
     }).setOrigin(0.5).setDepth(51);
     this.customers.push({
       gridX: 4, gridY: 16,
       targetGridX: freeSlot.gx, targetGridY: freeSlot.gy,
-      state: 'to_queue',
-      rect: rect, bubble: bubble,
-      eatTimer: 0,
-      tableGx: -1, tableGy: -1,
-      orderedDish: '', order: null,
-      mode: 'queue',
+      state: 'to_queue', rect: rect, bubble: bubble,
+      eatTimer: 0, tableGx: -1, tableGy: -1,
+      orderedDish: '', order: null, mode: 'queue',
     });
   } else {
     const table = this.findFreeOneTable();
     if (!table) return;
-    table.state = 'eating';
-    table.eaters = 1;
-    const rect = this.add.rectangle(startPos.x, startPos.y - 14, 22, 22, 0xe74c3c).setStrokeStyle(2, 0x000000);
-    rect.setDepth(50);
+    table.state = 'eating'; table.eaters = 1;
+    const rect = this.add.rectangle(startPos.x, startPos.y - 14, 22, 22, 0xe74c3c).setStrokeStyle(2, 0x000000).setDepth(50);
     const bubble = this.add.text(startPos.x, startPos.y - 36, '...', {
-      fontSize: '12px', color: '#ffffff',
-      backgroundColor: '#000000aa', padding: { x: 3, y: 2 }
+      fontSize: '12px', color: '#ffffff', backgroundColor: '#000000aa', padding: { x: 3, y: 2 }
     }).setOrigin(0.5).setDepth(51);
     this.customers.push({
       gridX: 4, gridY: 16,
-      targetGridX: table.gx,
-      targetGridY: table.gy + 1,
-      state: 'to_seat',
-      rect: rect, bubble: bubble,
-      eatTimer: 0,
-      tableGx: table.gx, tableGy: table.gy,
-      orderedDish: '', order: null,
-      mode: 'table',
+      targetGridX: table.gx, targetGridY: table.gy + 1,
+      state: 'to_seat', rect: rect, bubble: bubble,
+      eatTimer: 0, tableGx: table.gx, tableGy: table.gy,
+      orderedDish: '', order: null, mode: 'table',
     });
   }
 };
@@ -811,31 +863,22 @@ MainScene.prototype.spawnGroup = function(size) {
   const self = this;
   const table = this.findFreeGroupTable();
   if (!table) return;
-  table.state = 'eating';
-  table.eaters = size - 1;
-
+  table.state = 'eating'; table.eaters = size - 1;
   const startPos = gridToScreen(4, 16);
 
   for (let i = 0; i < size - 1; i++) {
-    const rect = this.add.rectangle(startPos.x + (i - 1) * 15, startPos.y - 14, 22, 22, 0xe74c3c).setStrokeStyle(2, 0x000000);
-    rect.setDepth(50);
+    const rect = this.add.rectangle(startPos.x + (i - 1) * 15, startPos.y - 14, 22, 22, 0xe74c3c).setStrokeStyle(2, 0x000000).setDepth(50);
     const bubble = this.add.text(rect.x, rect.y - 22, '...', {
-      fontSize: '12px', color: '#ffffff',
-      backgroundColor: '#000000aa', padding: { x: 3, y: 2 }
+      fontSize: '12px', color: '#ffffff', backgroundColor: '#000000aa', padding: { x: 3, y: 2 }
     }).setOrigin(0.5).setDepth(51);
     const offsetX = (i % 2) * 0.4 - 0.2;
     const offsetY = Math.floor(i / 2) * 0.4 - 0.2;
     this.customers.push({
       gridX: 4, gridY: 16,
-      targetGridX: table.gx + offsetX,
-      targetGridY: table.gy + 1 + offsetY,
-      state: 'to_seat',
-      rect: rect, bubble: bubble,
-      eatTimer: 0,
-      tableGx: table.gx, tableGy: table.gy,
-      orderedDish: '', order: null,
-      mode: 'table',
-      groupSize: size,
+      targetGridX: table.gx + offsetX, targetGridY: table.gy + 1 + offsetY,
+      state: 'to_seat', rect: rect, bubble: bubble,
+      eatTimer: 0, tableGx: table.gx, tableGy: table.gy,
+      orderedDish: '', order: null, mode: 'table', groupSize: size,
     });
   }
 
@@ -846,22 +889,16 @@ MainScene.prototype.spawnGroup = function(size) {
     });
   });
   if (!freeSlot) return;
-  const rect = this.add.rectangle(startPos.x, startPos.y - 14, 22, 22, 0xff6b6b).setStrokeStyle(2, 0x000000);
-  rect.setDepth(50);
+  const rect = this.add.rectangle(startPos.x, startPos.y - 14, 22, 22, 0xff6b6b).setStrokeStyle(2, 0x000000).setDepth(50);
   const bubble = this.add.text(startPos.x, startPos.y - 36, '...', {
-    fontSize: '12px', color: '#ffffff',
-    backgroundColor: '#000000aa', padding: { x: 3, y: 2 }
+    fontSize: '12px', color: '#ffffff', backgroundColor: '#000000aa', padding: { x: 3, y: 2 }
   }).setOrigin(0.5).setDepth(51);
   this.customers.push({
     gridX: 4, gridY: 16,
     targetGridX: freeSlot.gx, targetGridY: freeSlot.gy,
-    state: 'to_queue',
-    rect: rect, bubble: bubble,
-    eatTimer: 0,
-    tableGx: -1, tableGy: -1,
-    orderedDish: '', order: null,
-    mode: 'queue',
-    groupSize: size,
+    state: 'to_queue', rect: rect, bubble: bubble,
+    eatTimer: 0, tableGx: -1, tableGy: -1,
+    orderedDish: '', order: null, mode: 'queue', groupSize: size,
   });
 };
 
@@ -873,28 +910,25 @@ MainScene.prototype.updateCustomers = function(delta) {
     if (c.state === 'eating') {
       c.eatTimer -= delta;
       if (c.eatTimer <= 0) {
-        const stars = Math.floor(Math.random() * 3) + 3;
+        const stars = Math.floor(Math.random() * 3) + 3; // 3-5星
         let starStr = '';
         for (let k = 0; k < 5; k++) starStr += (k < stars ? '★' : '☆');
         const pos0 = gridToScreen(c.gridX, c.gridY);
         const reviewText = self.add.text(pos0.x, pos0.y - 50, c.orderedDish + ' ' + starStr, {
-          fontSize: '14px', color: '#ffffff',
-          backgroundColor: '#000000cc', padding: { x: 4, y: 2 }
+          fontSize: '14px', color: '#ffffff', backgroundColor: '#000000cc', padding: { x: 4, y: 2 }
         }).setOrigin(0.5).setDepth(300);
         self.tweens.add({
-          targets: reviewText,
-          y: pos0.y - 90,
-          alpha: 0,
-          duration: 2000,
+          targets: reviewText, y: pos0.y - 90, alpha: 0, duration: 2000,
           onComplete: function(){ reviewText.destroy(); }
         });
+        // ★ 5星好评 → +3 星
+        if (stars >= 5) self.addStars(3);
         if (c.tableGx >= 0) {
           for (let t of self.tableSlots) {
             if (t.gx === c.tableGx && t.gy === c.tableGy) {
               t.eaters -= 1;
               if (t.eaters <= 0 && t.state === 'eating') {
-                t.state = 'dirty';
-                t.eaters = 0;
+                t.state = 'dirty'; t.eaters = 0;
                 self.dirtyTables.push(t);
               }
               break;
@@ -902,33 +936,26 @@ MainScene.prototype.updateCustomers = function(delta) {
           }
         }
         c.state = 'leaving';
-        c.targetGridX = 4;
-        c.targetGridY = 16;
+        c.targetGridX = 4; c.targetGridY = 16;
         c.bubble.setText('👋');
       }
     }
 
     if (c.state === 'pickup_waiting' && c.order && c.order.stage === 'onPickup') {
       const pos = self.findFacilityPos('取餐台');
-      c.targetGridX = pos.gx;
-      c.targetGridY = pos.gy + 1;
+      c.targetGridX = pos.gx; c.targetGridY = pos.gy + 1;
       c.state = 'to_pickup';
     }
 
     if (c.state === 'seated' && c.mode === 'table') {
       let alreadyBell = false;
       for (let t of self.tableSlots) {
-        if (t.gx === c.tableGx && t.gy === c.tableGy && t.bell) {
-          alreadyBell = true;
-          break;
-        }
+        if (t.gx === c.tableGx && t.gy === c.tableGy && t.bell) { alreadyBell = true; break; }
       }
       if (!alreadyBell) {
         for (let t of self.tableSlots) {
           if (t.gx === c.tableGx && t.gy === c.tableGy && t.eaters > 0) {
-            t.bell = true;
-            c.bubble.setText('🔔');
-            break;
+            t.bell = true; c.bubble.setText('🔔'); break;
           }
         }
       }
@@ -958,27 +985,18 @@ MainScene.prototype.updateCustomers = function(delta) {
         }
         const freeTable = self.tableSlots.find(function(t){ return t.state === 'free'; });
         if (freeTable) {
-          freeTable.state = 'eating';
-          freeTable.eaters = 1;
-          c.tableGx = freeTable.gx;
-          c.tableGy = freeTable.gy;
-          c.targetGridX = freeTable.gx;
-          c.targetGridY = freeTable.gy + 1;
+          freeTable.state = 'eating'; freeTable.eaters = 1;
+          c.tableGx = freeTable.gx; c.tableGy = freeTable.gy;
+          c.targetGridX = freeTable.gx; c.targetGridY = freeTable.gy + 1;
           c.state = 'to_table';
         } else {
-          c.state = 'leaving';
-          c.targetGridX = 4; c.targetGridY = 16;
+          c.state = 'leaving'; c.targetGridX = 4; c.targetGridY = 16;
         }
-      }
-      else if (c.state === 'to_table') {
-        c.state = 'eating';
-        c.eatTimer = 2500;
-        c.bubble.setText('~');
-      }
-      else if (c.state === 'leaving') {
+      } else if (c.state === 'to_table') {
+        c.state = 'eating'; c.eatTimer = 2500; c.bubble.setText('~');
+      } else if (c.state === 'leaving') {
         if (c.gridY > 15.5) {
-          c.rect.destroy();
-          c.bubble.destroy();
+          c.rect.destroy(); c.bubble.destroy();
           self.customers.splice(i, 1);
           continue;
         }
@@ -986,28 +1004,43 @@ MainScene.prototype.updateCustomers = function(delta) {
     }
 
     const pos = gridToScreen(c.gridX, c.gridY);
-    c.rect.x = pos.x;
-    c.rect.y = pos.y - 14;
+    c.rect.x = pos.x; c.rect.y = pos.y - 14;
     c.bubble.x = pos.x;
     c.bubble.y = pos.y - 36 + Math.sin(this.time.now / 300) * 2;
     c.rect.setDepth(c.gridX + c.gridY + 1);
     c.bubble.setDepth(c.gridX + c.gridY + 2);
   }
-
-  const queueCount = this.customers.filter(function(c){
-    return c.state === 'to_queue' || c.state === 'waiting';
-  }).length;
-  const pickupCount = this.customers.filter(function(c){
-    return c.state === 'to_pickup_queue' || c.state === 'pickup_waiting';
-  }).length;
-  this.queueText.setText('点餐队: ' + queueCount);
-  this.pickupQueueText.setText('取餐队: ' + pickupCount);
 };
 
 MainScene.prototype.update = function(time, delta) {
   const self = this;
 
-  // 菜单打开时冻结玩家输入
+  // ★ 时间推进
+  this.timeAccum += delta;
+  while (this.timeAccum >= TIME_STEP_MS) {
+    this.timeAccum -= TIME_STEP_MS;
+    this.gameMinutes += 10;
+    if (this.gameMinutes >= 1440) {
+      this.gameMinutes -= 1440;
+      this.gameDay += 1;
+      if (this.gameDay > 30) {
+        this.gameDay = 1;
+        this.gameMonth += 1;
+        if (this.gameMonth > 12) {
+          this.gameMonth = 1;
+          this.gameYear += 1;
+        }
+      }
+    }
+  }
+  const h = Math.floor(this.gameMinutes / 60);
+  const m = this.gameMinutes % 60;
+  const hs = (h < 10 ? '0' : '') + h;
+  const ms = (m < 10 ? '0' : '') + m;
+  this.timeText.setText(this.gameYear + '年' + this.gameMonth + '月 ' + hs + ':' + ms);
+  this.timeText2.setText('第' + this.gameDay + '天');
+
+  // 玩家移动
   let dx = this.menuOpen ? 0 : this.moveX;
   let dy = this.menuOpen ? 0 : this.moveY;
   if (!this.menuOpen) {
@@ -1042,26 +1075,25 @@ MainScene.prototype.update = function(time, delta) {
   this.updateCleaner(delta);
 
   // 靠近点餐台或工作电脑
-  let nearestPoint = null;
+  let nearest = null;
   for (let i = 0; i < this.facilities.length; i++) {
     const f = this.facilities[i];
     if (f.label !== '点餐台' && f.label !== '工作电脑') continue;
     const dist = Phaser.Math.Distance.Between(this.playerGridX, this.playerGridY, f.gx, f.gy);
-    if (dist < 1.4) nearestPoint = f;
+    if (dist < 1.4) nearest = f;
   }
-  this.currentFacility = nearestPoint;
+  this.currentFacility = nearest;
 
   if (this.menuOpen) {
-    // 菜单打开时隐藏互动按钮
     this.interactButton.setVisible(false);
     this.interactText.setVisible(false);
     return;
   }
 
-  if (nearestPoint) {
+  if (nearest) {
     this.interactButton.setVisible(true);
     this.interactText.setVisible(true);
-    if (nearestPoint.label === '工作电脑') {
+    if (nearest.label === '工作电脑') {
       this.interactText.setText('菜单管理');
     } else {
       this.interactText.setText('接单+收钱');
