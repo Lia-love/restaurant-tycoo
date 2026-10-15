@@ -39,7 +39,11 @@ MainScene.prototype = Object.create(Phaser.Scene.prototype);
 MainScene.prototype.constructor = MainScene;
 
 MainScene.prototype.create = function() {
-  // 1. 绘制等角网格
+  // 1. 游戏状态
+  this.orderStatus = 0; // 0:无订单 1:已点餐 2:已做好 3:配送中
+  this.coinCount = 0;
+
+  // 2. 绘制等角网格
   this.graphics = this.add.graphics();
   this.graphics.lineStyle(2, 0x4a2f1e, 0.8);
   
@@ -56,7 +60,7 @@ MainScene.prototype.create = function() {
     }
   }
 
-  // 2. 绘制基础餐厅设施，并存入数组
+  // 3. 绘制基础餐厅设施，并存入数组
   this.facilities = [];
   const self = this;
   
@@ -80,7 +84,7 @@ MainScene.prototype.create = function() {
   addFacility(6, 3, 0xf1c40f, '餐桌');
   addFacility(5, 7, 0xf1c40f, '餐桌');
 
-  // 3. 创建玩家
+  // 4. 创建玩家
   this.playerGridX = 4;
   this.playerGridY = 4;
   
@@ -88,7 +92,7 @@ MainScene.prototype.create = function() {
   this.player = this.add.rectangle(pos.x, pos.y - 16, 32, 32, 0x4a90e2).setStrokeStyle(2, 0xffcc66);
   this.player.setDepth(this.playerGridX + this.playerGridY + 1);
 
-  // 4. 创建虚拟摇杆
+  // 5. 创建虚拟摇杆
   this.joyBase = this.add.circle(150, 1100, 80, 0xffffff, 0.2).setDepth(100);
   this.joyKnob = this.add.circle(150, 1100, 40, 0xffcc66, 0.8).setDepth(101);
   
@@ -135,25 +139,78 @@ MainScene.prototype.create = function() {
     this.joyKnob.y = 1100;
   });
 
-  // 5. 创建互动按钮（右下角）
+  // 6. 创建互动按钮（右下角）
   this.interactButton = this.add.circle(600, 1100, 60, 0xe74c3c, 0.8).setDepth(100).setVisible(false);
   this.interactButton.setInteractive({ useHandCursor: true });
   
-  // 互动按钮文字
   this.interactText = this.add.text(600, 1100, '互动', {
     fontSize: '24px', color: '#ffffff', fontStyle: 'bold'
   }).setOrigin(0.5).setDepth(101).setVisible(false);
 
-  // 互动反馈文字
-  this.feedbackText = this.add.text(360, 1000, '', {
+  // 7. 状态文字（顶部）
+  this.statusText = this.add.text(360, 50, '状态：等待点餐', {
+    fontSize: '28px', color: '#ffffff', fontStyle: 'bold'
+  }).setOrigin(0.5).setDepth(200);
+
+  // 8. 金币文字（右上角）
+  this.coinText = this.add.text(680, 50, '金币: 0', {
+    fontSize: '24px', color: '#ffcc66', fontStyle: 'bold'
+  }).setOrigin(1, 0.5).setDepth(200);
+
+  // 9. 互动按钮点击逻辑
+  this.interactButton.on('pointerdown', () => {
+    if (!this.currentFacility) return;
+    const label = this.currentFacility.label;
+    let msg = '';
+
+    if (label === '点餐台') {
+      if (this.orderStatus === 0) {
+        this.orderStatus = 1;
+        msg = '顾客点餐成功！';
+        this.statusText.setText('状态：等待做菜');
+      } else {
+        msg = '已经有订单了！';
+      }
+    } 
+    else if (label === '灶台') {
+      if (this.orderStatus === 1) {
+        this.orderStatus = 2;
+        msg = '菜品制作完成！';
+        this.statusText.setText('状态：等待出餐');
+      } else {
+        msg = '没有需要制作的订单。';
+      }
+    }
+    else if (label === '出餐口') {
+      if (this.orderStatus === 2) {
+        this.orderStatus = 3;
+        msg = '拿到餐品，去送餐吧！';
+        this.statusText.setText('状态：正在送餐');
+      } else {
+        msg = '没有做好的餐品。';
+      }
+    }
+    else if (label === '餐桌') {
+      if (this.orderStatus === 3) {
+        this.orderStatus = 0;
+        this.coinCount += 30; // 一次赚30金币
+        msg = '送餐成功！获得30金币！';
+        this.statusText.setText('状态：等待点餐');
+        this.coinText.setText('金币: ' + this.coinCount);
+      } else {
+        msg = '现在没有餐品可以送。';
+      }
+    }
+
+    // 显示反馈
+    this.feedbackText.setText(msg).setVisible(true);
+    this.time.delayedCall(1200, () => this.feedbackText.setVisible(false));
+  });
+
+  // 反馈文字
+  this.feedbackText = this.add.text(360, 150, '', {
     fontSize: '32px', color: '#ffcc66', fontStyle: 'bold'
   }).setOrigin(0.5).setDepth(200).setVisible(false);
-
-  // 点击互动按钮
-  this.interactButton.on('pointerdown', () => {
-    this.feedbackText.setText('互动成功！').setVisible(true);
-    this.time.delayedCall(1000, () => this.feedbackText.setVisible(false));
-  });
 
   // 键盘支持
   this.cursors = this.input.keyboard.createCursorKeys();
@@ -186,19 +243,22 @@ MainScene.prototype.update = function(time, delta) {
     this.player.setDepth(this.playerGridX + this.playerGridY + 1);
   }
 
-  // 检测是否靠近设施
-  let nearFacility = false;
+  // 找出最近的一个设施
+  let nearestFacility = null;
+  let minDist = 1.5;
   for (let i = 0; i < this.facilities.length; i++) {
     const fac = this.facilities[i];
     const dist = Phaser.Math.Distance.Between(this.playerGridX, this.playerGridY, fac.gx, fac.gy);
-    if (dist < 1.5) {
-      nearFacility = true;
-      break;
+    if (dist < minDist) {
+      minDist = dist;
+      nearestFacility = fac;
     }
   }
+  
+  this.currentFacility = nearestFacility;
 
   // 显示/隐藏互动按钮
-  if (nearFacility) {
+  if (nearestFacility) {
     this.interactButton.setVisible(true);
     this.interactText.setVisible(true);
   } else {
