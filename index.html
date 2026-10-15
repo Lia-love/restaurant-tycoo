@@ -18,9 +18,9 @@
 const TILE_W = 56;
 const TILE_H = 28;
 const GRID_W = 8;
-const GRID_H = 16;
+const GRID_H = 17;
 const ORIGIN_X = 472;
-const ORIGIN_Y = 240;
+const ORIGIN_Y = 220;
 
 function gridToScreen(gx, gy) {
   return {
@@ -29,7 +29,6 @@ function gridToScreen(gx, gy) {
   };
 }
 
-// ===== 菜品数据 =====
 const DISHES = {
   '番茄炒饭': { price: 28, station: '灶台',   type: 'back' },
   '薯条':     { price: 18, station: '炸锅',   type: 'back' },
@@ -47,7 +46,6 @@ const DISHES = {
   '关东煮':   { price: 26, station: '关东煮', type: 'front' },
 };
 
-// ===== 设施布局 =====
 const FACILITY_LIST = [
   // 后厨 0-4
   { gx: 0, gy: 0, color: 0xe67e22, label: '灶台' },
@@ -63,11 +61,13 @@ const FACILITY_LIST = [
   { gx: 7, gy: 3, color: 0x95a5a6, label: '洗碗池' },
   { gx: 0, gy: 4, color: 0x95a5a6, label: '冰箱' },
   { gx: 7, gy: 4, color: 0x9b59b6, label: '出餐台' },
-  // 前区 5
+
+  // 前区设备 5
   { gx: 0, gy: 5, color: 0x1abc9c, label: '奶茶机' },
   { gx: 1, gy: 5, color: 0x1abc9c, label: '咖啡机' },
   { gx: 2, gy: 5, color: 0x1abc9c, label: '冰淇淋机' },
   { gx: 3, gy: 5, color: 0x95a5a6, label: '菜单屏' },
+
   // 前台 8
   { gx: 0, gy: 8, color: 0x3498db, label: '外卖台' },
   { gx: 1, gy: 8, color: 0x3498db, label: '蛋糕柜' },
@@ -75,25 +75,35 @@ const FACILITY_LIST = [
   { gx: 3, gy: 8, color: 0x3498db, label: '点餐台' },
   { gx: 4, gy: 8, color: 0x3498db, label: '取餐台' },
   { gx: 7, gy: 8, color: 0x95a5a6, label: '清洗区' },
-  // 大门 9
-  { gx: 7, gy: 9, color: 0x8b4513, label: '大门' },
-  // 餐桌 11-15
+
+  // 餐桌区 11-15（新布局）
+  // 11行：一人桌 + 两人桌 x4
   { gx: 0, gy: 11, color: 0xf1c40f, label: '一人桌' },
-  { gx: 0, gy: 12, color: 0xf1c40f, label: '一人桌' },
-  { gx: 0, gy: 13, color: 0xf1c40f, label: '一人桌' },
-  { gx: 0, gy: 14, color: 0xf1c40f, label: '一人桌' },
-  { gx: 0, gy: 15, color: 0xf1c40f, label: '一人桌' },
+  { gx: 2, gy: 11, color: 0xf39c12, label: '两人桌' },
   { gx: 3, gy: 11, color: 0xf39c12, label: '两人桌' },
+  { gx: 5, gy: 11, color: 0xf39c12, label: '两人桌' },
+  { gx: 6, gy: 11, color: 0xf39c12, label: '两人桌' },
+  // 12行：一人桌
+  { gx: 0, gy: 12, color: 0xf1c40f, label: '一人桌' },
+  // 13行：一人桌 + 四人桌 x4
+  { gx: 0, gy: 13, color: 0xf1c40f, label: '一人桌' },
+  { gx: 2, gy: 13, color: 0xd35400, label: '四人桌' },
   { gx: 3, gy: 13, color: 0xd35400, label: '四人桌' },
+  { gx: 5, gy: 13, color: 0xd35400, label: '四人桌' },
+  { gx: 6, gy: 13, color: 0xd35400, label: '四人桌' },
+  // 14行：一人桌
+  { gx: 0, gy: 14, color: 0xf1c40f, label: '一人桌' },
+  // 15行：一人桌 + 两人桌 x2 + 大门 + 两人桌 x2
+  { gx: 0, gy: 15, color: 0xf1c40f, label: '一人桌' },
+  { gx: 2, gy: 15, color: 0xf39c12, label: '两人桌' },
   { gx: 3, gy: 15, color: 0xf39c12, label: '两人桌' },
-  { gx: 7, gy: 11, color: 0xf39c12, label: '两人桌' },
-  { gx: 7, gy: 13, color: 0xd35400, label: '四人桌' },
-  { gx: 7, gy: 15, color: 0xf39c12, label: '两人桌' },
+  { gx: 4, gy: 15, color: 0x8b4513, label: '大门' },
+  { gx: 5, gy: 15, color: 0xf39c12, label: '两人桌' },
+  { gx: 6, gy: 15, color: 0xf39c12, label: '两人桌' },
 ];
 
 const COIN_ZONE = { gx: 5, gy: 8 };
 
-// ===== 主场景 =====
 function MainScene() {
   Phaser.Scene.call(this, { key: 'MainScene' });
 }
@@ -110,17 +120,17 @@ MainScene.prototype.create = function() {
   this.spawnTimer = 0;
   this.spawnInterval = 5000;
 
+  // 排队位在9行（点餐台下方）
   this.queueSlots = [
-    { gx: 3, gy: 7 },
-    { gx: 2, gy: 7 },
-    { gx: 1, gy: 7 },
+    { gx: 3, gy: 9 },
+    { gx: 2, gy: 9 },
+    { gx: 1, gy: 9 },
   ];
 
   this.tableSlots = FACILITY_LIST
     .filter(function(f){ return f.label.indexOf('桌') !== -1; })
     .map(function(f){ return { gx: f.gx, gy: f.gy, state: 'free' }; });
 
-  // 网格
   this.graphics = this.add.graphics();
   this.graphics.lineStyle(1, 0x4a2f1e, 0.5);
   for (let gy = 0; gy < GRID_H; gy++) {
@@ -138,7 +148,7 @@ MainScene.prototype.create = function() {
 
   this.drawSeparator(4.5);
   this.drawSeparator(5.5);
-  this.drawSeparator(9.5);
+  this.drawSeparator(10.5);
 
   // 金币区
   const coinZonePos = gridToScreen(COIN_ZONE.gx, COIN_ZONE.gy);
@@ -147,7 +157,12 @@ MainScene.prototype.create = function() {
     fontSize: '20px'
   }).setOrigin(0.5).setDepth(2);
 
-  // 设施
+  // 9-10行排队区提示
+  const qPos = gridToScreen(2, 10);
+  this.add.text(qPos.x, qPos.y, '排队区', {
+    fontSize: '12px', color: '#ffcc66'
+  }).setOrigin(0.5).setDepth(3);
+
   this.facilities = [];
   const self = this;
   FACILITY_LIST.forEach(function(f) {
@@ -161,13 +176,12 @@ MainScene.prototype.create = function() {
   });
 
   // 老板
-  this.playerGridX = 5;
-  this.playerGridY = 9;
+  this.playerGridX = 4;
+  this.playerGridY = 10;
   const pos = gridToScreen(this.playerGridX, this.playerGridY);
   this.player = this.add.rectangle(pos.x, pos.y - 14, 28, 28, 0x4a90e2).setStrokeStyle(2, 0xffcc66);
   this.player.setDepth(this.playerGridX + this.playerGridY + 1);
 
-  // 4个员工
   this.chef = this.makeEmployee(2, 3, 0xe67e22, '厨');
   this.waiter = this.makeEmployee(4, 7, 0x1abc9c, '送');
   this.server = this.makeEmployee(5, 10, 0xf1c40f, '服');
@@ -214,14 +228,12 @@ MainScene.prototype.create = function() {
     self.joyKnob.y = 1100;
   });
 
-  // 互动按钮
   this.interactButton = this.add.circle(600, 1100, 60, 0xe74c3c, 0.85).setDepth(100).setVisible(false);
   this.interactButton.setInteractive({ useHandCursor: true });
   this.interactText = this.add.text(600, 1100, '接单+收钱', {
     fontSize: '20px', color: '#ffffff', fontStyle: 'bold'
   }).setOrigin(0.5).setDepth(101).setVisible(false);
 
-  // UI
   this.statusText = this.add.text(360, 40, '走到点餐台点单', {
     fontSize: '22px', color: '#ffffff', fontStyle: 'bold'
   }).setOrigin(0.5).setDepth(200);
@@ -238,7 +250,6 @@ MainScene.prototype.create = function() {
     fontSize: '24px', color: '#ffcc66', fontStyle: 'bold'
   }).setOrigin(0.5).setDepth(200).setVisible(false);
 
-  // 互动点击
   this.interactButton.on('pointerdown', function(){
     if (!self.currentFacility) {
       self.showFeedback('站到点餐台旁再试');
@@ -334,7 +345,6 @@ MainScene.prototype.findFacilityPos = function(label) {
   return null;
 };
 
-// ===== 厨师 =====
 MainScene.prototype.updateChef = function(delta) {
   const chef = this.chef;
   const order = this.currentOrder;
@@ -371,7 +381,6 @@ MainScene.prototype.updateChef = function(delta) {
   this.updateEmployeeSprite(chef);
 };
 
-// ===== 送餐员 =====
 MainScene.prototype.updateWaiter = function(delta) {
   const w = this.waiter;
   const order = this.currentOrder;
@@ -425,7 +434,6 @@ MainScene.prototype.updateWaiter = function(delta) {
   this.updateEmployeeSprite(w);
 };
 
-// ===== 服务员（收拾脏盘）=====
 MainScene.prototype.updateServer = function(delta) {
   const s = this.server;
 
@@ -457,7 +465,6 @@ MainScene.prototype.updateServer = function(delta) {
   this.updateEmployeeSprite(s);
 };
 
-// ===== 清洗人员 =====
 MainScene.prototype.updateCleaner = function(delta) {
   const c = this.cleaner;
 
@@ -483,7 +490,6 @@ MainScene.prototype.updateCleaner = function(delta) {
   this.updateEmployeeSprite(c);
 };
 
-// ===== 顾客 =====
 MainScene.prototype.spawnCustomer = function() {
   const self = this;
   const freeSlot = this.queueSlots.find(function(slot){
@@ -494,7 +500,8 @@ MainScene.prototype.spawnCustomer = function() {
   });
   if (!freeSlot) return;
 
-  const startPos = gridToScreen(7, 9);
+  // 顾客从大门下方生成
+  const startPos = gridToScreen(4, 16);
   const rect = this.add.rectangle(startPos.x, startPos.y - 14, 22, 22, 0xff6b6b).setStrokeStyle(2, 0x000000);
   rect.setDepth(50);
   const bubble = this.add.text(startPos.x, startPos.y - 36, '...', {
@@ -503,7 +510,7 @@ MainScene.prototype.spawnCustomer = function() {
   }).setOrigin(0.5).setDepth(51);
 
   this.customers.push({
-    gridX: 7, gridY: 9,
+    gridX: 4, gridY: 16,
     targetGridX: freeSlot.gx, targetGridY: freeSlot.gy,
     state: 'to_queue',
     rect: rect, bubble: bubble,
@@ -521,7 +528,6 @@ MainScene.prototype.updateCustomers = function(delta) {
     if (c.state === 'eating') {
       c.eatTimer -= delta;
       if (c.eatTimer <= 0) {
-        self.spawnCoins(c.gridX, c.gridY, 2);
         const stars = Math.floor(Math.random() * 3) + 3;
         let starStr = '';
         for (let k = 0; k < 5; k++) starStr += (k < stars ? '★' : '☆');
@@ -545,8 +551,8 @@ MainScene.prototype.updateCustomers = function(delta) {
           }
         }
         c.state = 'leaving';
-        c.targetGridX = 9;
-        c.targetGridY = 9;
+        c.targetGridX = 4;
+        c.targetGridY = 16;
         c.bubble.setText('👋');
       }
     }
@@ -582,7 +588,7 @@ MainScene.prototype.updateCustomers = function(delta) {
           c.state = 'to_table';
         } else {
           c.state = 'leaving';
-          c.targetGridX = 9; c.targetGridY = 9;
+          c.targetGridX = 4; c.targetGridY = 16;
         }
       }
       else if (c.state === 'to_table') {
@@ -595,7 +601,7 @@ MainScene.prototype.updateCustomers = function(delta) {
         }
       }
       else if (c.state === 'leaving') {
-        if (c.gridX > 8) {
+        if (c.gridY > 15.5) {
           c.rect.destroy();
           c.bubble.destroy();
           self.customers.splice(i, 1);
@@ -619,7 +625,6 @@ MainScene.prototype.updateCustomers = function(delta) {
   this.queueText.setText('排队: ' + waitingCount);
 };
 
-// ===== 金币 =====
 MainScene.prototype.spawnCoinsAtZone = function(totalValue) {
   const perCoin = Math.ceil(totalValue / 4);
   for (let i = 0; i < 4; i++) {
@@ -629,21 +634,6 @@ MainScene.prototype.spawnCoinsAtZone = function(totalValue) {
     this.coins.push({
       sprite: coin,
       value: perCoin,
-      phase: Math.random() * Math.PI * 2,
-      baseY: pos.y,
-      attract: false,
-    });
-  }
-};
-
-MainScene.prototype.spawnCoins = function(gx, gy, count) {
-  for (let i = 0; i < count; i++) {
-    const pos = gridToScreen(gx + (Math.random() - 0.5) * 0.6, gy + (Math.random() - 0.5) * 0.6);
-    const coin = this.add.circle(pos.x, pos.y, 7, 0xffcc66).setStrokeStyle(2, 0x8b6914);
-    coin.setDepth(60);
-    this.coins.push({
-      sprite: coin,
-      value: 1,
       phase: Math.random() * Math.PI * 2,
       baseY: pos.y,
       attract: false,
@@ -674,7 +664,6 @@ MainScene.prototype.updateCoins = function(delta) {
   }
 };
 
-// ===== 主循环 =====
 MainScene.prototype.update = function(time, delta) {
   const self = this;
   const speed = 0.03;
@@ -710,7 +699,6 @@ MainScene.prototype.update = function(time, delta) {
   this.updateCleaner(delta);
   this.updateCoins(delta);
 
-  // ★ 关键修复：找到最近的点餐台，赋值给 currentFacility
   let nearestPoint = null;
   for (let i = 0; i < this.facilities.length; i++) {
     const f = this.facilities[i];
