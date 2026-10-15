@@ -15,15 +15,13 @@
 <div id="game"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.80.0/phaser.min.js"></script>
 <script>
-// ================== 游戏常量 ==================
-const TILE_W = 64;     
-const TILE_H = 32;     
-const GRID_W = 10;     
-const GRID_H = 10;     
-const ORIGIN_X = 360;  
-const ORIGIN_Y = 400;  
+const TILE_W = 64;
+const TILE_H = 32;
+const GRID_W = 10;
+const GRID_H = 10;
+const ORIGIN_X = 360;
+const ORIGIN_Y = 400;
 
-// ================== 坐标转换 ==================
 function gridToScreen(gx, gy) {
   return {
     x: ORIGIN_X + (gx - gy) * (TILE_W / 2),
@@ -31,7 +29,6 @@ function gridToScreen(gx, gy) {
   };
 }
 
-// ================== 主场景 ==================
 function MainScene() {
   Phaser.Scene.call(this, { key: 'MainScene' });
 }
@@ -39,14 +36,12 @@ MainScene.prototype = Object.create(Phaser.Scene.prototype);
 MainScene.prototype.constructor = MainScene;
 
 MainScene.prototype.create = function() {
-  // 1. 游戏状态
-  this.orderStatus = 0; // 0:无订单 1:已点餐 2:已做好 3:配送中
+  this.orderStatus = 0;
   this.coinCount = 0;
 
-  // 2. 绘制等角网格
+  // 网格
   this.graphics = this.add.graphics();
   this.graphics.lineStyle(2, 0x4a2f1e, 0.8);
-  
   for (let gy = 0; gy < GRID_H; gy++) {
     for (let gx = 0; gx < GRID_W; gx++) {
       const p = gridToScreen(gx, gy);
@@ -60,42 +55,58 @@ MainScene.prototype.create = function() {
     }
   }
 
-  // 3. 绘制基础餐厅设施，并存入数组
+  // 设施
   this.facilities = [];
   const self = this;
-  
   function addFacility(gx, gy, color, label) {
     const pos = gridToScreen(gx, gy);
     const rect = self.add.rectangle(pos.x, pos.y - 10, 44, 30, color).setStrokeStyle(2, 0x000000);
-    rect.setDepth(gx + gy); 
-    
+    rect.setDepth(gx + gy);
     self.add.text(pos.x, pos.y - 10, label, {
-      fontSize: '14px', color: '#ffffff', fontStyle: 'bold'
+      fontSize: '13px', color: '#ffffff', fontStyle: 'bold'
     }).setOrigin(0.5).setDepth(gx + gy + 1);
-    
     self.facilities.push({ gx, gy, label, rect });
-    return rect;
   }
 
-  addFacility(2, 2, 0x3498db, '点餐台');
-  addFacility(8, 8, 0xe67e22, '灶台');
-  addFacility(7, 7, 0x9b59b6, '出餐口');
-  addFacility(4, 5, 0xf1c40f, '餐桌');
-  addFacility(6, 3, 0xf1c40f, '餐桌');
-  addFacility(5, 7, 0xf1c40f, '餐桌');
+  // ============ 后厨区（上方）============
+  addFacility(3, 1, 0xe67e22, '灶台');
+  addFacility(4, 1, 0x9b59b6, '出餐口');
 
-  // 4. 创建玩家
-  this.playerGridX = 4;
+  // ============ 前区（点餐台在出餐口下方）============
+  addFacility(4, 2, 0x3498db, '点餐台');
+
+  // ============ 就餐区（下方）============
+  // 一人桌（左侧一列）
+  addFacility(1, 5, 0xf1c40f, '一人桌');
+  addFacility(1, 6, 0xf1c40f, '一人桌');
+  addFacility(1, 7, 0xf1c40f, '一人桌');
+  addFacility(1, 8, 0xf1c40f, '一人桌');
+  addFacility(2, 8, 0xf1c40f, '一人桌');
+
+  // 两人桌（中间一列）
+  addFacility(4, 5, 0xf39c12, '两人桌');
+  addFacility(4, 6, 0xf39c12, '两人桌');
+  addFacility(4, 7, 0xf39c12, '两人桌');
+  addFacility(4, 8, 0xf39c12, '两人桌');
+  addFacility(5, 8, 0xf39c12, '两人桌');
+
+  // 四人桌（右侧一列）
+  addFacility(7, 5, 0xd35400, '四人桌');
+  addFacility(7, 6, 0xd35400, '四人桌');
+  addFacility(7, 7, 0xd35400, '四人桌');
+  addFacility(7, 8, 0xd35400, '四人桌');
+  addFacility(8, 8, 0xd35400, '四人桌');
+
+  // 老板起点
+  this.playerGridX = 5;
   this.playerGridY = 4;
-  
   const pos = gridToScreen(this.playerGridX, this.playerGridY);
   this.player = this.add.rectangle(pos.x, pos.y - 16, 32, 32, 0x4a90e2).setStrokeStyle(2, 0xffcc66);
   this.player.setDepth(this.playerGridX + this.playerGridY + 1);
 
-  // 5. 创建虚拟摇杆
+  // 摇杆
   this.joyBase = this.add.circle(150, 1100, 80, 0xffffff, 0.2).setDepth(100);
   this.joyKnob = this.add.circle(150, 1100, 40, 0xffcc66, 0.8).setDepth(101);
-  
   this.isJoyActive = false;
   this.joyStartX = 150;
   this.joyStartY = 1100;
@@ -109,28 +120,23 @@ MainScene.prototype.create = function() {
       this.joyStartY = pointer.y;
     }
   });
-
   this.input.on('pointermove', (pointer) => {
     if (!this.isJoyActive) return;
     const dx = pointer.x - this.joyStartX;
     const dy = pointer.y - this.joyStartY;
     const dist = Math.sqrt(dx * dx + dy * dy);
     const maxDist = 60;
-    
     if (dist > 0) {
       const angle = Math.atan2(dy, dx);
       const clampedDist = Math.min(dist, maxDist);
       const moveDx = Math.cos(angle) * clampedDist;
       const moveDy = Math.sin(angle) * clampedDist;
-      
       this.joyKnob.x = this.joyStartX + moveDx;
       this.joyKnob.y = this.joyStartY + moveDy;
-      
       this.moveX = moveDx / maxDist;
       this.moveY = moveDy / maxDist;
     }
   });
-
   this.input.on('pointerup', () => {
     this.isJoyActive = false;
     this.moveX = 0;
@@ -139,25 +145,25 @@ MainScene.prototype.create = function() {
     this.joyKnob.y = 1100;
   });
 
-  // 6. 创建互动按钮（右下角）
+  // 互动按钮
   this.interactButton = this.add.circle(600, 1100, 60, 0xe74c3c, 0.8).setDepth(100).setVisible(false);
   this.interactButton.setInteractive({ useHandCursor: true });
-  
   this.interactText = this.add.text(600, 1100, '互动', {
     fontSize: '24px', color: '#ffffff', fontStyle: 'bold'
   }).setOrigin(0.5).setDepth(101).setVisible(false);
 
-  // 7. 状态文字（顶部）
+  // 状态显示
   this.statusText = this.add.text(360, 50, '状态：等待点餐', {
     fontSize: '28px', color: '#ffffff', fontStyle: 'bold'
   }).setOrigin(0.5).setDepth(200);
-
-  // 8. 金币文字（右上角）
   this.coinText = this.add.text(680, 50, '金币: 0', {
     fontSize: '24px', color: '#ffcc66', fontStyle: 'bold'
   }).setOrigin(1, 0.5).setDepth(200);
+  this.feedbackText = this.add.text(360, 150, '', {
+    fontSize: '32px', color: '#ffcc66', fontStyle: 'bold'
+  }).setOrigin(0.5).setDepth(200).setVisible(false);
 
-  // 9. 互动按钮点击逻辑
+  // 互动点击
   this.interactButton.on('pointerdown', () => {
     if (!this.currentFacility) return;
     const label = this.currentFacility.label;
@@ -171,8 +177,7 @@ MainScene.prototype.create = function() {
       } else {
         msg = '已经有订单了！';
       }
-    } 
-    else if (label === '灶台') {
+    } else if (label === '灶台') {
       if (this.orderStatus === 1) {
         this.orderStatus = 2;
         msg = '菜品制作完成！';
@@ -180,8 +185,7 @@ MainScene.prototype.create = function() {
       } else {
         msg = '没有需要制作的订单。';
       }
-    }
-    else if (label === '出餐口') {
+    } else if (label === '出餐口') {
       if (this.orderStatus === 2) {
         this.orderStatus = 3;
         msg = '拿到餐品，去送餐吧！';
@@ -189,11 +193,10 @@ MainScene.prototype.create = function() {
       } else {
         msg = '没有做好的餐品。';
       }
-    }
-    else if (label === '餐桌') {
+    } else if (label.includes('桌')) {
       if (this.orderStatus === 3) {
         this.orderStatus = 0;
-        this.coinCount += 30; // 一次赚30金币
+        this.coinCount += 30;
         msg = '送餐成功！获得30金币！';
         this.statusText.setText('状态：等待点餐');
         this.coinText.setText('金币: ' + this.coinCount);
@@ -202,17 +205,10 @@ MainScene.prototype.create = function() {
       }
     }
 
-    // 显示反馈
     this.feedbackText.setText(msg).setVisible(true);
     this.time.delayedCall(1200, () => this.feedbackText.setVisible(false));
   });
 
-  // 反馈文字
-  this.feedbackText = this.add.text(360, 150, '', {
-    fontSize: '32px', color: '#ffcc66', fontStyle: 'bold'
-  }).setOrigin(0.5).setDepth(200).setVisible(false);
-
-  // 键盘支持
   this.cursors = this.input.keyboard.createCursorKeys();
   this.keys = this.input.keyboard.addKeys('W,A,S,D');
 };
@@ -221,7 +217,6 @@ MainScene.prototype.update = function(time, delta) {
   const speed = 0.005;
   let dx = this.moveX;
   let dy = this.moveY;
-
   if (this.cursors.left.isDown || this.keys.A.isDown) dx = -1;
   if (this.cursors.right.isDown || this.keys.D.isDown) dx = 1;
   if (this.cursors.up.isDown || this.keys.W.isDown) dy = -1;
@@ -230,20 +225,16 @@ MainScene.prototype.update = function(time, delta) {
   if (dx !== 0 || dy !== 0) {
     const gridDx = (dx / (TILE_W / 2) + dy / (TILE_H / 2)) / 2;
     const gridDy = (dy / (TILE_H / 2) - dx / (TILE_W / 2)) / 2;
-
     this.playerGridX += gridDx * delta * speed;
     this.playerGridY += gridDy * delta * speed;
-
     this.playerGridX = Phaser.Math.Clamp(this.playerGridX, 0, GRID_W - 1);
     this.playerGridY = Phaser.Math.Clamp(this.playerGridY, 0, GRID_H - 1);
-
     const pos = gridToScreen(this.playerGridX, this.playerGridY);
     this.player.x = pos.x;
     this.player.y = pos.y - 16;
     this.player.setDepth(this.playerGridX + this.playerGridY + 1);
   }
 
-  // 找出最近的一个设施
   let nearestFacility = null;
   let minDist = 1.5;
   for (let i = 0; i < this.facilities.length; i++) {
@@ -254,10 +245,7 @@ MainScene.prototype.update = function(time, delta) {
       nearestFacility = fac;
     }
   }
-  
   this.currentFacility = nearestFacility;
-
-  // 显示/隐藏互动按钮
   if (nearestFacility) {
     this.interactButton.setVisible(true);
     this.interactText.setVisible(true);
