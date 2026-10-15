@@ -19,8 +19,8 @@ const TILE_W = 56;
 const TILE_H = 28;
 const GRID_W = 8;
 const GRID_H = 17;
-const ORIGIN_X = 472;
-const ORIGIN_Y = 220;
+const ORIGIN_X = 486;
+const ORIGIN_Y = 470;   // ★ 从 220 改到 470，地图下移居中
 
 const TOP_BAR_H = 90;
 const TIME_STEP_MS = 1250;
@@ -111,18 +111,15 @@ MainScene.prototype.create = function() {
   this.menuOpen = false;
   this.menuPanelItems = null;
 
-  // 时间
-  this.gameMinutes = 360; // 06:00
+  this.gameMinutes = 360;
   this.gameDay = 1;
   this.gameMonth = 1;
   this.gameYear = 1;
   this.timeAccum = 0;
 
-  // 等级
   this.stars = 0;
   this.level = 1;
 
-  // 菜品开关
   this.dishEnabled = {};
   const self = this;
   Object.keys(DISHES).forEach(function(name){ self.dishEnabled[name] = true; });
@@ -159,18 +156,17 @@ MainScene.prototype.create = function() {
   this.drawSeparator(10.5);
 
   const qPos = gridToScreen(3, 9);
-  this.add.text(qPos.x - 45, qPos.y + 5, '点餐队', {
+  this.add.text(qPos.x - 55, qPos.y + 5, '点餐队', {
     fontSize: '12px', color: '#ff9999'
   }).setOrigin(0.5).setDepth(3);
   const pPos = gridToScreen(4, 9);
-  this.add.text(pPos.x + 45, pPos.y + 5, '取餐队', {
+  this.add.text(pPos.x + 55, pPos.y + 5, '取餐队', {
     fontSize: '12px', color: '#99ccff'
   }).setOrigin(0.5).setDepth(3);
 
   this.addDoorMarker(4, 8);
   this.addDoorMarker(7, 8);
 
-  // 设施
   this.facilities = [];
   FACILITY_LIST.forEach(function(f) {
     const pos = gridToScreen(f.gx, f.gy);
@@ -182,31 +178,29 @@ MainScene.prototype.create = function() {
     self.facilities.push({ gx: f.gx, gy: f.gy, label: f.label, rect: rect });
   });
 
-  // 老板
   this.playerGridX = 5;
   this.playerGridY = 10;
   const pos = gridToScreen(this.playerGridX, this.playerGridY);
   this.player = this.add.rectangle(pos.x, pos.y - 14, 28, 28, 0x4a90e2).setStrokeStyle(2, 0xffcc66);
   this.player.setDepth(this.playerGridX + this.playerGridY + 1);
 
-  // 员工
   this.chef    = this.makeEmployee(2, 3,  0xe67e22, '厨');
   this.waiter  = this.makeEmployee(5, 7,  0x1abc9c, '送');
   this.server  = this.makeEmployee(2, 10, 0xf1c40f, '服');
   this.cleaner = this.makeEmployee(6, 9,  0xffffff, '洗');
 
-  // 摇杆（上移到 y=1040）
-  this.joyBase = this.add.circle(130, 1040, 70, 0xffffff, 0.2).setDepth(100);
-  this.joyKnob = this.add.circle(130, 1040, 35, 0xffcc66, 0.8).setDepth(101);
+  // 摇杆（中偏下位置）
+  this.joyBase = this.add.circle(130, 1050, 75, 0xffffff, 0.2).setDepth(100);
+  this.joyKnob = this.add.circle(130, 1050, 38, 0xffcc66, 0.8).setDepth(101);
   this.isJoyActive = false;
   this.joyStartX = 130;
-  this.joyStartY = 1040;
+  this.joyStartY = 1050;
   this.moveX = 0;
   this.moveY = 0;
-  const joyMaxDist = 55;
+  const joyMaxDist = 58;
 
   this.input.on('pointerdown', function(pointer){
-    if (pointer.x < 280 && pointer.y > 900 && pointer.y < 1150) {
+    if (pointer.x < 280 && pointer.y > 900 && pointer.y < 1160) {
       self.isJoyActive = true;
       self.joyStartX = pointer.x;
       self.joyStartY = pointer.y;
@@ -233,34 +227,31 @@ MainScene.prototype.create = function() {
     self.moveX = 0;
     self.moveY = 0;
     self.joyKnob.x = 130;
-    self.joyKnob.y = 1040;
+    self.joyKnob.y = 1050;
   });
 
   // 互动按钮
-  this.interactButton = this.add.circle(590, 1040, 55, 0xe74c3c, 0.85).setDepth(100).setVisible(false);
+  this.interactButton = this.add.circle(590, 1050, 58, 0xe74c3c, 0.85).setDepth(100).setVisible(false);
   this.interactButton.setInteractive({ useHandCursor: true });
-  this.interactText = this.add.text(590, 1040, '接单+收钱', {
+  this.interactText = this.add.text(590, 1050, '接单+收钱', {
     fontSize: '18px', color: '#ffffff', fontStyle: 'bold'
   }).setOrigin(0.5).setDepth(101).setVisible(false);
 
   // ===== 顶部状态栏 =====
-  this.add.rectangle(360, TOP_BAR_H/2, 720, TOP_BAR_H, 0x000000, 0.75).setDepth(400);
+  this.add.rectangle(360, TOP_BAR_H/2, 720, TOP_BAR_H, 0x000000, 0.78).setDepth(400);
   this.add.rectangle(360, TOP_BAR_H, 720, 2, 0xffcc66, 0.5).setDepth(401);
-  // 时间
   this.timeText = this.add.text(20, 22, '1年1月 06:00', {
     fontSize: '22px', color: '#ffffff', fontStyle: 'bold'
   }).setDepth(402);
   this.timeText2 = this.add.text(20, 52, '第1天', {
     fontSize: '16px', color: '#aaaaaa'
   }).setDepth(402);
-  // 等级+星星
   this.levelText = this.add.text(360, 15, 'Lv.1', {
     fontSize: '24px', color: '#ffcc66', fontStyle: 'bold'
   }).setOrigin(0.5, 0).setDepth(402);
   this.starText = this.add.text(360, 50, '⭐ 0 / 25', {
     fontSize: '16px', color: '#ffff99'
   }).setOrigin(0.5, 0).setDepth(402);
-  // 金币
   this.coinText = this.add.text(700, 22, '0 G', {
     fontSize: '22px', color: '#ffcc66', fontStyle: 'bold'
   }).setOrigin(1, 0).setDepth(402);
@@ -268,19 +259,19 @@ MainScene.prototype.create = function() {
     fontSize: '14px', color: '#aaaaaa'
   }).setOrigin(1, 0).setDepth(402);
 
-  // 反馈文字
   this.feedbackText = this.add.text(360, TOP_BAR_H + 40, '', {
     fontSize: '24px', color: '#ffcc66', fontStyle: 'bold'
   }).setOrigin(0.5).setDepth(200).setVisible(false);
 
-  // ===== 底部 5 按钮 =====
+  // ===== 底部 5 按钮（居中，全可见）=====
   const btnLabels = ['建造', '公告栏', '观光', '店铺', '菜单'];
   const btnColors = [0x3498db, 0x9b59b6, 0x1abc9c, 0xe67e22, 0xc0392b];
   this.bottomButtons = [];
+  // 按钮宽 120，间距 144（12 + 60 + i*144）
   for (let i = 0; i < 5; i++) {
-    const cx = 100 + i * 130;
-    const cy = 1220;
-    const bg = this.add.rectangle(cx, cy, 116, 80, btnColors[i], 0.9)
+    const cx = 72 + i * 144;
+    const cy = 1180;
+    const bg = this.add.rectangle(cx, cy, 120, 70, btnColors[i], 0.92)
       .setStrokeStyle(2, 0xffcc66).setDepth(400);
     bg.setInteractive({ useHandCursor: true });
     const label = this.add.text(cx, cy, btnLabels[i], {
@@ -335,18 +326,15 @@ MainScene.prototype.create = function() {
   this.keys = this.input.keyboard.addKeys('W,A,S,D');
 };
 
-// ===== 更新金币显示 =====
 MainScene.prototype.updateCoinDisplay = function() {
   this.coinText.setText(this.coinCount + ' G');
 };
 
-// ===== 更新等级/星星显示 =====
 MainScene.prototype.updateLevelDisplay = function() {
   this.levelText.setText('Lv.' + this.level);
   this.starText.setText('⭐ ' + this.stars + ' / 25');
 };
 
-// ===== 增加星星 =====
 MainScene.prototype.addStars = function(n) {
   if (this.level >= 100) return;
   this.stars += n;
@@ -361,7 +349,6 @@ MainScene.prototype.addStars = function(n) {
   this.updateCoinDisplay();
 };
 
-// ===== 随机取菜 =====
 MainScene.prototype.pickRandomDish = function() {
   const enabled = Object.keys(DISHES).filter(function(name){
     return this.dishEnabled[name];
@@ -370,7 +357,6 @@ MainScene.prototype.pickRandomDish = function() {
   return enabled[Math.floor(Math.random() * enabled.length)];
 };
 
-// ===== 菜单管理面板 =====
 MainScene.prototype.openMenuPanel = function() {
   if (this.menuOpen) return;
   this.menuOpen = true;
@@ -422,7 +408,6 @@ MainScene.prototype.openMenuPanel = function() {
   this.menuPanelItems = items;
 };
 
-// ===== 底部 5 个功能面板 =====
 MainScene.prototype.openBottomPanel = function(idx) {
   if (this.menuOpen) return;
   this.menuOpen = true;
@@ -438,7 +423,6 @@ MainScene.prototype.openBottomPanel = function(idx) {
   }).setOrigin(0.5).setDepth(502));
 
   if (idx === 4) {
-    // 菜单：显示所有菜品 + 价格 + 开关状态
     items.push(this.add.text(360, 250, '菜品列表（只读）', {
       fontSize: '16px', color: '#aaaaaa'
     }).setOrigin(0.5).setDepth(502));
@@ -457,11 +441,7 @@ MainScene.prototype.openBottomPanel = function(idx) {
         fontSize: '18px', color: '#ffcc66'
       }).setOrigin(1, 0).setDepth(502));
     });
-    items.push(this.add.text(360, 1030, '关闭', {
-      fontSize: '16px', color: '#aaaaaa'
-    }).setOrigin(0.5).setDepth(502));
   } else {
-    // 其他面板：占位提示
     items.push(this.add.text(360, 640, title + ' 功能\n\n开发中…', {
       fontSize: '28px', color: '#ffffff', textAlign: 'center'
     }).setOrigin(0.5).setDepth(502));
@@ -910,7 +890,7 @@ MainScene.prototype.updateCustomers = function(delta) {
     if (c.state === 'eating') {
       c.eatTimer -= delta;
       if (c.eatTimer <= 0) {
-        const stars = Math.floor(Math.random() * 3) + 3; // 3-5星
+        const stars = Math.floor(Math.random() * 3) + 3;
         let starStr = '';
         for (let k = 0; k < 5; k++) starStr += (k < stars ? '★' : '☆');
         const pos0 = gridToScreen(c.gridX, c.gridY);
@@ -921,7 +901,6 @@ MainScene.prototype.updateCustomers = function(delta) {
           targets: reviewText, y: pos0.y - 90, alpha: 0, duration: 2000,
           onComplete: function(){ reviewText.destroy(); }
         });
-        // ★ 5星好评 → +3 星
         if (stars >= 5) self.addStars(3);
         if (c.tableGx >= 0) {
           for (let t of self.tableSlots) {
@@ -1015,7 +994,7 @@ MainScene.prototype.updateCustomers = function(delta) {
 MainScene.prototype.update = function(time, delta) {
   const self = this;
 
-  // ★ 时间推进
+  // 时间推进
   this.timeAccum += delta;
   while (this.timeAccum >= TIME_STEP_MS) {
     this.timeAccum -= TIME_STEP_MS;
@@ -1040,7 +1019,6 @@ MainScene.prototype.update = function(time, delta) {
   this.timeText.setText(this.gameYear + '年' + this.gameMonth + '月 ' + hs + ':' + ms);
   this.timeText2.setText('第' + this.gameDay + '天');
 
-  // 玩家移动
   let dx = this.menuOpen ? 0 : this.moveX;
   let dy = this.menuOpen ? 0 : this.moveY;
   if (!this.menuOpen) {
@@ -1074,7 +1052,6 @@ MainScene.prototype.update = function(time, delta) {
   this.updateServer(delta);
   this.updateCleaner(delta);
 
-  // 靠近点餐台或工作电脑
   let nearest = null;
   for (let i = 0; i < this.facilities.length; i++) {
     const f = this.facilities[i];
