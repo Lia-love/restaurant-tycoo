@@ -1,0 +1,59 @@
+```html
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>餐厅区块大亨</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { width:100%; height:100%; overflow:hidden; background:#2b1d14; touch-action:none; }
+  #game { width:100vw; height:100vh; }
+  canvas { display:block; image-rendering:pixelated; }
+</style>
+</head>
+<body>
+<div id="game"></div>
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.80.0/dist/phaser.min.js"></script>
+<script>
+const config = {
+  type: Phaser.AUTO,
+  parent: 'game',
+  width: 720,
+  height: 1280,
+  backgroundColor: '#2b1d14',
+  pixelArt: true,
+  roundPixels: true,
+  scale: {
+    mode: Phaser.Scale.FIT,
+    autoCenter: Phaser.Scale.CENTER_BOTH
+  },
+  scene: [TestScene]
+};
+
+function TestScene() {
+  Phaser.Scene.call(this, { key: 'TestScene' });
+}
+TestScene.prototype = Object.create(Phaser.Scene.prototype);
+TestScene.prototype.constructor = TestScene;
+TestScene.prototype.create = function() {
+  const cx = this.scale.width / 2;
+  const cy = this.scale.height / 2;
+
+  this.add.rectangle(cx, cy, 400, 200, 0x4a2f1e).setStrokeStyle(4, 0xffcc66);
+  this.add.text(cx, cy - 40, '餐厅区块大亨', {
+    fontSize: '48px', color: '#ffcc66', fontStyle: 'bold'
+  }).setOrigin(0.5);
+  this.add.text(cx, cy + 40, '竖屏测试中', {
+    fontSize: '28px', color: '#ffffff'
+  }).setOrigin(0.5);
+  this.add.text(cx, cy + 100, '720 × 1280', {
+    fontSize: '20px', color: '#aaaaaa'
+  }).setOrigin(0.5);
+};
+
+new Phaser.Game(config);
+</script>
+</body>
+</html>
+```
