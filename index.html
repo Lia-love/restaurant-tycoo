@@ -16,12 +16,12 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.80.0/phaser.min.js"></script>
 <script>
 // ================== 游戏常量 ==================
-const TILE_W = 64;     // 瓦片宽
-const TILE_H = 32;     // 瓦片高
-const GRID_W = 10;     // 横向网格数
-const GRID_H = 10;     // 纵向网格数
-const ORIGIN_X = 360;  // 原点X
-const ORIGIN_Y = 400;  // 原点Y
+const TILE_W = 64;     
+const TILE_H = 32;     
+const GRID_W = 10;     
+const GRID_H = 10;     
+const ORIGIN_X = 360;  
+const ORIGIN_Y = 400;  
 
 // ================== 坐标转换 ==================
 function gridToScreen(gx, gy) {
@@ -56,42 +56,37 @@ MainScene.prototype.create = function() {
     }
   }
 
-  // 2. 绘制基础餐厅设施（色块占位，对应豆包数据表）
-  // 参数：gx, gy, 颜色, 名字
-  function addFacility(scene, gx, gy, color, label) {
+  // 2. 绘制基础餐厅设施，并存入数组
+  this.facilities = [];
+  const self = this;
+  
+  function addFacility(gx, gy, color, label) {
     const pos = gridToScreen(gx, gy);
-    // 设施绘制成一个稍微带点高度的方块
-    const rect = scene.add.rectangle(pos.x, pos.y - 10, 44, 30, color).setStrokeStyle(2, 0x000000);
-    rect.setDepth(gx + gy); // 等角深度排序
+    const rect = self.add.rectangle(pos.x, pos.y - 10, 44, 30, color).setStrokeStyle(2, 0x000000);
+    rect.setDepth(gx + gy); 
     
-    // 名字标签
-    scene.add.text(pos.x, pos.y - 10, label, {
+    self.add.text(pos.x, pos.y - 10, label, {
       fontSize: '14px', color: '#ffffff', fontStyle: 'bold'
     }).setOrigin(0.5).setDepth(gx + gy + 1);
     
+    self.facilities.push({ gx, gy, label, rect });
     return rect;
   }
 
-  // 点餐台 (前区)
-  addFacility(this, 2, 2, 0x3498db, '点餐台');
-  // 灶台 (后区)
-  addFacility(this, 8, 8, 0xe67e22, '灶台');
-  // 出餐口 (后区)
-  addFacility(this, 7, 7, 0x9b59b6, '出餐口');
-  // 餐桌 1
-  addFacility(this, 4, 5, 0xf1c40f, '餐桌');
-  // 餐桌 2
-  addFacility(this, 6, 3, 0xf1c40f, '餐桌');
-  // 餐桌 3
-  addFacility(this, 5, 7, 0xf1c40f, '餐桌');
+  addFacility(2, 2, 0x3498db, '点餐台');
+  addFacility(8, 8, 0xe67e22, '灶台');
+  addFacility(7, 7, 0x9b59b6, '出餐口');
+  addFacility(4, 5, 0xf1c40f, '餐桌');
+  addFacility(6, 3, 0xf1c40f, '餐桌');
+  addFacility(5, 7, 0xf1c40f, '餐桌');
 
-  // 3. 创建玩家（老板小人）
+  // 3. 创建玩家
   this.playerGridX = 4;
   this.playerGridY = 4;
   
   const pos = gridToScreen(this.playerGridX, this.playerGridY);
   this.player = this.add.rectangle(pos.x, pos.y - 16, 32, 32, 0x4a90e2).setStrokeStyle(2, 0xffcc66);
-  this.player.setDepth(this.playerGridX + this.playerGridY + 1); // 深度排序
+  this.player.setDepth(this.playerGridX + this.playerGridY + 1);
 
   // 4. 创建虚拟摇杆
   this.joyBase = this.add.circle(150, 1100, 80, 0xffffff, 0.2).setDepth(100);
@@ -103,7 +98,6 @@ MainScene.prototype.create = function() {
   this.moveX = 0;
   this.moveY = 0;
 
-  // 摇杆触摸事件
   this.input.on('pointerdown', (pointer) => {
     if (pointer.x < 300 && pointer.y > 900) {
       this.isJoyActive = true;
@@ -141,6 +135,26 @@ MainScene.prototype.create = function() {
     this.joyKnob.y = 1100;
   });
 
+  // 5. 创建互动按钮（右下角）
+  this.interactButton = this.add.circle(600, 1100, 60, 0xe74c3c, 0.8).setDepth(100).setVisible(false);
+  this.interactButton.setInteractive({ useHandCursor: true });
+  
+  // 互动按钮文字
+  this.interactText = this.add.text(600, 1100, '互动', {
+    fontSize: '24px', color: '#ffffff', fontStyle: 'bold'
+  }).setOrigin(0.5).setDepth(101).setVisible(false);
+
+  // 互动反馈文字
+  this.feedbackText = this.add.text(360, 1000, '', {
+    fontSize: '32px', color: '#ffcc66', fontStyle: 'bold'
+  }).setOrigin(0.5).setDepth(200).setVisible(false);
+
+  // 点击互动按钮
+  this.interactButton.on('pointerdown', () => {
+    this.feedbackText.setText('互动成功！').setVisible(true);
+    this.time.delayedCall(1000, () => this.feedbackText.setVisible(false));
+  });
+
   // 键盘支持
   this.cursors = this.input.keyboard.createCursorKeys();
   this.keys = this.input.keyboard.addKeys('W,A,S,D');
@@ -169,7 +183,27 @@ MainScene.prototype.update = function(time, delta) {
     const pos = gridToScreen(this.playerGridX, this.playerGridY);
     this.player.x = pos.x;
     this.player.y = pos.y - 16;
-    this.player.setDepth(this.playerGridX + this.playerGridY + 1); // 动态深度排序
+    this.player.setDepth(this.playerGridX + this.playerGridY + 1);
+  }
+
+  // 检测是否靠近设施
+  let nearFacility = false;
+  for (let i = 0; i < this.facilities.length; i++) {
+    const fac = this.facilities[i];
+    const dist = Phaser.Math.Distance.Between(this.playerGridX, this.playerGridY, fac.gx, fac.gy);
+    if (dist < 1.5) {
+      nearFacility = true;
+      break;
+    }
+  }
+
+  // 显示/隐藏互动按钮
+  if (nearFacility) {
+    this.interactButton.setVisible(true);
+    this.interactText.setVisible(true);
+  } else {
+    this.interactButton.setVisible(false);
+    this.interactText.setVisible(false);
   }
 };
 
