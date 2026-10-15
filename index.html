@@ -105,13 +105,11 @@ MainScene.prototype.create = function() {
   this.spawnTimer = 0;
   this.spawnInterval = 5000;
 
-  // 点餐队：点餐台(3,8)正下方竖排
   this.queueSlots = [
     { gx: 3, gy: 9 },
     { gx: 3, gy: 10 },
     { gx: 3, gy: 11 },
   ];
-  // 取餐队：取餐台(4,8)正下方竖排
   this.pickupSlots = [
     { gx: 4, gy: 9 },
     { gx: 4, gy: 10 },
@@ -120,7 +118,7 @@ MainScene.prototype.create = function() {
 
   this.tableSlots = FACILITY_LIST
     .filter(function(f){ return f.label.indexOf('桌') !== -1; })
-    .map(function(f){ return { gx: f.gx, gy: f.gy, state: 'free' }; });
+    .map(function(f){ return { gx: f.gx, gy: f.gy, state: 'free', bell: false, customer: null }; });
 
   // 网格
   this.graphics = this.add.graphics();
@@ -152,6 +150,10 @@ MainScene.prototype.create = function() {
     fontSize: '12px', color: '#99ccff'
   }).setOrigin(0.5).setDepth(3);
 
+  // ★ 门：取餐台前、清洗区前的栅门（视觉）
+  this.addDoorMarker(4, 8);
+  this.addDoorMarker(7, 8);
+
   // 设施
   this.facilities = [];
   const self = this;
@@ -175,6 +177,7 @@ MainScene.prototype.create = function() {
   // 员工
   this.chef = this.makeEmployee(2, 3, 0xe67e22, '厨');
   this.waiter = this.makeEmployee(5, 7, 0x1abc9c, '送');
+  this.tableServer = this.makeEmployee(2, 10, 0xc0392b, '桌');  // ★ 桌服
   this.server = this.makeEmployee(5, 12, 0xf1c40f, '服');
   this.cleaner = this.makeEmployee(6, 9, 0xffffff, '洗');
 
@@ -219,14 +222,12 @@ MainScene.prototype.create = function() {
     self.joyKnob.y = 1100;
   });
 
-  // 互动按钮
   this.interactButton = this.add.circle(600, 1100, 60, 0xe74c3c, 0.85).setDepth(100).setVisible(false);
   this.interactButton.setInteractive({ useHandCursor: true });
   this.interactText = this.add.text(600, 1100, '接单+收钱', {
     fontSize: '20px', color: '#ffffff', fontStyle: 'bold'
   }).setOrigin(0.5).setDepth(101).setVisible(false);
 
-  // UI
   this.statusText = this.add.text(360, 40, '走到点餐台接单', {
     fontSize: '22px', color: '#ffffff', fontStyle: 'bold'
   }).setOrigin(0.5).setDepth(200);
@@ -249,7 +250,6 @@ MainScene.prototype.create = function() {
     fontSize: '24px', color: '#ffcc66', fontStyle: 'bold'
   }).setOrigin(0.5).setDepth(200).setVisible(false);
 
-  // 接单按钮
   this.interactButton.on('pointerdown', function(){
     if (!self.currentFacility || self.currentFacility.label !== '点餐台') {
       self.showFeedback('站到点餐台旁再试');
@@ -273,6 +273,7 @@ MainScene.prototype.create = function() {
       dish: dish, price: info.price,
       station: info.station, type: info.type,
       customer: customer,
+      delivery: 'pickup',
       stage: 'new'
     };
     self.orders.push(order);
@@ -283,7 +284,6 @@ MainScene.prototype.create = function() {
       customer.targetGridY = spot.gy;
     }
     customer.bubble.setText('?');
-    // ★ 直接加钱，不掉实体金币
     self.coinCount += info.price;
     self.coinText.setText('金币: ' + self.coinCount);
     self.showFeedback('收银成功：' + dish + ' +' + info.price);
@@ -292,6 +292,15 @@ MainScene.prototype.create = function() {
 
   this.cursors = this.input.keyboard.createCursorKeys();
   this.keys = this.input.keyboard.addKeys('W,A,S,D');
+};
+
+// ★ 门标记
+MainScene.prototype.addDoorMarker = function(gx, gy) {
+  const pos = gridToScreen(gx, gy);
+  this.add.rectangle(pos.x, pos.y + 14, 56, 6, 0x8b4513).setDepth(200);
+  this.add.text(pos.x, pos.y + 14, '🚪', {
+    fontSize: '14px'
+  }).setOrigin(0.5).setDepth(201);
 };
 
 MainScene.prototype.updateOrderCount = function() {
@@ -303,6 +312,7 @@ MainScene.prototype.makeEmployee = function(gx, gy, color, tag) {
     gx: gx, gy: gy, tx: gx, ty: gy,
     state: 'idle', timer: 0,
     currentOrder: null,
+    currentTable: null,
     sprite: this.add.rectangle(0, 0, 26, 26, color).setStrokeStyle(2, 0x000000),
     label: this.add.text(0, 0, tag, { fontSize: '12px', color: color === 0xffffff ? '#000' : '#fff', fontStyle: 'bold' }).setOrigin(0.5)
   };
@@ -358,6 +368,7 @@ MainScene.prototype.findFacilityPos = function(label) {
   return null;
 };
 
+// 厨师
 MainScene.prototype.updateChef = function(delta) {
   const chef = this.chef;
 
@@ -398,11 +409,15 @@ MainScene.prototype.updateChef = function(delta) {
   this.updateEmployeeSprite(chef);
 };
 
+// 送餐员
 MainScene.prototype.updateWaiter = function(delta) {
   const w = this.waiter;
 
   if (w.state === 'idle') {
-    const passOrder = this.orders.find(function(o){ return o.stage === 'onPass'; });
+    // 优先：出餐台有菜 + 客户堂食订单（去取餐队）
+    const passOrder = this.orders.find(function(o){
+      return o.stage === 'onPass' && o.delivery !== 'table';
+    });
     if (passOrder) {
       const pos = this.findFacilityPos('出餐台');
       w.tx = pos.gx; w.ty = pos.gy;
@@ -411,7 +426,7 @@ MainScene.prototype.updateWaiter = function(delta) {
       passOrder.stage = 'waiter_taking';
     } else {
       const frontOrder = this.orders.find(function(o){
-        return o.type === 'front' && o.stage === 'new';
+        return o.type === 'front' && o.stage === 'new' && o.delivery !== 'table';
       });
       if (frontOrder) {
         const pos = this.findFacilityPos(frontOrder.station);
@@ -431,7 +446,6 @@ MainScene.prototype.updateWaiter = function(delta) {
     if (this.moveEmp(w, w.tx, w.ty, 0.01, delta)) {
       if (w.currentOrder && w.currentOrder.stage === 'waiter_taking') {
         w.currentOrder.stage = 'onPickup';
-        this.showFeedback(w.currentOrder.dish + ' 已送到取餐台');
         w.currentOrder = null;
       }
       w.state = 'idle';
@@ -451,7 +465,6 @@ MainScene.prototype.updateWaiter = function(delta) {
     if (this.moveEmp(w, w.tx, w.ty, 0.01, delta)) {
       if (w.currentOrder && w.currentOrder.stage === 'waiter_working') {
         w.currentOrder.stage = 'onPickup';
-        this.showFeedback(w.currentOrder.dish + ' 已送到取餐台');
         w.currentOrder = null;
       }
       w.state = 'idle';
@@ -460,6 +473,116 @@ MainScene.prototype.updateWaiter = function(delta) {
   this.updateEmployeeSprite(w);
 };
 
+// ★ 桌服：接桌边单 + 送钱 + 取餐送桌
+MainScene.prototype.updateTableServer = function(delta) {
+  const ts = this.tableServer;
+
+  if (ts.state === 'idle') {
+    // 1. 优先：有按铃的桌子 → 去接单
+    const belledTable = this.tableSlots.find(function(t){ return t.bell; });
+    if (belledTable) {
+      ts.tx = belledTable.gx;
+      ts.ty = belledTable.gy + 1;
+      ts.currentTable = belledTable;
+      ts.state = 'to_table_order';
+      return;
+    }
+    // 2. 其次：有桌边订单已到取餐台 → 去取餐
+    const tableOrderReady = this.orders.find(function(o){
+      return o.delivery === 'table' && o.stage === 'onPickup';
+    });
+    if (tableOrderReady) {
+      const pos = this.findFacilityPos('取餐台');
+      ts.tx = pos.gx; ts.ty = pos.gy;
+      ts.state = 'to_pickup_table';
+      ts.currentOrder = tableOrderReady;
+      return;
+    }
+  }
+  else if (ts.state === 'to_table_order') {
+    if (this.moveEmp(ts, ts.tx, ts.ty, 0.01, delta)) {
+      ts.state = 'taking_order'; ts.timer = 1500;
+    }
+  }
+  else if (ts.state === 'taking_order') {
+    ts.timer -= delta;
+    if (ts.timer <= 0) {
+      // 生成本桌客户的订单
+      const t = ts.currentTable;
+      if (t && t.customer) {
+        const c = t.customer;
+        const dishNames = Object.keys(DISHES);
+        const dish = dishNames[Math.floor(Math.random() * dishNames.length)];
+        const info = DISHES[dish];
+        const order = {
+          dish: dish, price: info.price,
+          station: info.station, type: info.type,
+          customer: c,
+          delivery: 'table',
+          tableGx: t.gx, tableGy: t.gy,
+          stage: 'new'
+        };
+        this.orders.push(order);
+        c.order = order;
+        c.orderedDish = dish;
+        c.state = 'waiting_food';
+        c.bubble.setText('⏳');
+        this.updateOrderCount();
+        t.bell = false;
+      }
+      ts.currentTable = null;
+      // 去收银台送钱
+      const cashier = this.findFacilityPos('点餐台');
+      ts.tx = cashier.gx;
+      ts.ty = cashier.gy + 1;
+      ts.state = 'to_cashier';
+    }
+  }
+  else if (ts.state === 'to_cashier') {
+    if (this.moveEmp(ts, ts.tx, ts.ty, 0.01, delta)) {
+      // 收钱
+      if (ts.currentOrder) {
+        // 已经加过了
+      }
+      ts.state = 'idle';
+    }
+  }
+  else if (ts.state === 'to_pickup_table') {
+    if (this.moveEmp(ts, ts.tx, ts.ty, 0.01, delta)) {
+      // 取餐成功，去桌子
+      if (ts.currentOrder) {
+        ts.tx = ts.currentOrder.tableGx;
+        ts.ty = ts.currentOrder.tableGy + 1;
+        ts.state = 'to_table_deliver';
+      } else {
+        ts.state = 'idle';
+      }
+    }
+  }
+  else if (ts.state === 'to_table_deliver') {
+    if (this.moveEmp(ts, ts.tx, ts.ty, 0.01, delta)) {
+      if (ts.currentOrder) {
+        const order = ts.currentOrder;
+        // 客户开始吃
+        if (order.customer) {
+          order.customer.state = 'eating';
+          order.customer.eatTimer = 2500;
+          order.customer.bubble.setText('~');
+        }
+        // 从订单数组移除
+        const idx = this.orders.indexOf(order);
+        if (idx >= 0) this.orders.splice(idx, 1);
+        this.updateOrderCount();
+        ts.currentOrder = null;
+      }
+      ts.state = 'idle';
+    }
+  }
+
+  this.updateEmployeeSprite(ts);
+};
+
+// 服务员（收脏盘）
 MainScene.prototype.updateServer = function(delta) {
   const s = this.server;
 
@@ -475,6 +598,7 @@ MainScene.prototype.updateServer = function(delta) {
       if (s.currentTable) {
         this.dirtyTables.shift();
         s.currentTable.state = 'free';
+        s.currentTable.customer = null;
         s.currentTable = null;
       }
       const pos = this.findFacilityPos('清洗区');
@@ -491,6 +615,7 @@ MainScene.prototype.updateServer = function(delta) {
   this.updateEmployeeSprite(s);
 };
 
+// 清洗人员
 MainScene.prototype.updateCleaner = function(delta) {
   const c = this.cleaner;
 
@@ -516,8 +641,161 @@ MainScene.prototype.updateCleaner = function(delta) {
   this.updateEmployeeSprite(c);
 };
 
+// 找空桌
+MainScene.prototype.findFreeTable = function(minSize) {
+  for (let i = 0; i < this.tableSlots.length; i++) {
+    const t = this.tableSlots[i];
+    if (t.state !== 'free') continue;
+    // 一人桌 label 长度，两人桌，四人桌
+    return t;
+  }
+  return null;
+};
+
+// 找一人桌（专门给桌边服务的单人）
+MainScene.prototype.findFreeOneTable = function() {
+  for (let i = 0; i < this.tableSlots.length; i++) {
+    const t = this.tableSlots[i];
+    if (t.state !== 'free') continue;
+    const fac = this.facilities.find(function(f){
+      return f.gx === t.gx && f.gy === t.gy;
+    });
+    if (fac && fac.label === '一人桌') return t;
+  }
+  // 没有一人桌，找任意空桌
+  return this.findFreeTable();
+};
+
+// 找两人桌或四人桌（给组队）
+MainScene.prototype.findFreeGroupTable = function() {
+  // 优先两人桌
+  for (let i = 0; i < this.tableSlots.length; i++) {
+    const t = this.tableSlots[i];
+    if (t.state !== 'free') continue;
+    const fac = this.facilities.find(function(f){
+      return f.gx === t.gx && f.gy === t.gy;
+    });
+    if (fac && (fac.label === '两人桌' || fac.label === '四人桌')) return t;
+  }
+  return null;
+};
+
+// 生成顾客
 MainScene.prototype.spawnCustomer = function() {
   const self = this;
+  const rand = Math.random();
+
+  // 30% 组队，70% 单人
+  if (rand < 0.2) {
+    // 2人组
+    this.spawnGroup(2);
+  } else if (rand < 0.3) {
+    // 4人组
+    this.spawnGroup(4);
+  } else {
+    // 单人
+    this.spawnSingle();
+  }
+};
+
+// 单人：50% 点餐队，50% 桌边服务
+MainScene.prototype.spawnSingle = function() {
+  const self = this;
+  const useTable = Math.random() < 0.4;
+
+  const startPos = gridToScreen(4, 16);
+
+  if (!useTable) {
+    // 走点餐队
+    const freeSlot = this.queueSlots.find(function(slot){
+      return !self.customers.some(function(c){
+        return (c.state === 'to_queue' || c.state === 'waiting') &&
+               c.targetGridX === slot.gx && c.targetGridY === slot.gy;
+      });
+    });
+    if (!freeSlot) return;
+    const rect = this.add.rectangle(startPos.x, startPos.y - 14, 22, 22, 0xff6b6b).setStrokeStyle(2, 0x000000);
+    rect.setDepth(50);
+    const bubble = this.add.text(startPos.x, startPos.y - 36, '...', {
+      fontSize: '12px', color: '#ffffff',
+      backgroundColor: '#000000aa', padding: { x: 3, y: 2 }
+    }).setOrigin(0.5).setDepth(51);
+    this.customers.push({
+      gridX: 4, gridY: 16,
+      targetGridX: freeSlot.gx, targetGridY: freeSlot.gy,
+      state: 'to_queue',
+      rect: rect, bubble: bubble,
+      eatTimer: 0,
+      tableGx: -1, tableGy: -1,
+      orderedDish: '',
+      order: null,
+      mode: 'queue',
+    });
+  } else {
+    // 桌边服务
+    const table = this.findFreeOneTable();
+    if (!table) return; // 没桌就不来
+    table.state = 'eating';
+    const rect = this.add.rectangle(startPos.x, startPos.y - 14, 22, 22, 0xe74c3c).setStrokeStyle(2, 0x000000);
+    rect.setDepth(50);
+    const bubble = this.add.text(startPos.x, startPos.y - 36, '...', {
+      fontSize: '12px', color: '#ffffff',
+      backgroundColor: '#000000aa', padding: { x: 3, y: 2 }
+    }).setOrigin(0.5).setDepth(51);
+    const customer = {
+      gridX: 4, gridY: 16,
+      targetGridX: table.gx,
+      targetGridY: table.gy + 1,
+      state: 'to_seat',
+      rect: rect, bubble: bubble,
+      eatTimer: 0,
+      tableGx: table.gx, tableGy: table.gy,
+      orderedDish: '',
+      order: null,
+      mode: 'table',
+    };
+    table.customer = customer;
+    this.customers.push(customer);
+  }
+};
+
+// 组队：1人点餐队，其他坐桌按铃
+MainScene.prototype.spawnGroup = function(size) {
+  const self = this;
+  const table = this.findFreeGroupTable();
+  if (!table) return;
+  table.state = 'eating';
+
+  const startPos = gridToScreen(4, 16);
+
+  // 坐桌的成员（size-1 个）
+  for (let i = 0; i < size - 1; i++) {
+    const rect = this.add.rectangle(startPos.x + (i - 1) * 15, startPos.y - 14, 22, 22, 0xe74c3c).setStrokeStyle(2, 0x000000);
+    rect.setDepth(50);
+    const bubble = this.add.text(rect.x, rect.y - 22, '...', {
+      fontSize: '12px', color: '#ffffff',
+      backgroundColor: '#000000aa', padding: { x: 3, y: 2 }
+    }).setOrigin(0.5).setDepth(51);
+    // 坐在桌子的不同偏移位置
+    const offsetX = (i % 2) * 0.4 - 0.2;
+    const offsetY = Math.floor(i / 2) * 0.4 - 0.2;
+    const customer = {
+      gridX: 4, gridY: 16,
+      targetGridX: table.gx + offsetX,
+      targetGridY: table.gy + 1 + offsetY,
+      state: 'to_seat',
+      rect: rect, bubble: bubble,
+      eatTimer: 0,
+      tableGx: table.gx, tableGy: table.gy,
+      orderedDish: '',
+      order: null,
+      mode: 'table',
+      groupSize: size,
+    };
+    this.customers.push(customer);
+  }
+
+  // 点餐队成员（1个）
   const freeSlot = this.queueSlots.find(function(slot){
     return !self.customers.some(function(c){
       return (c.state === 'to_queue' || c.state === 'waiting') &&
@@ -526,14 +804,12 @@ MainScene.prototype.spawnCustomer = function() {
   });
   if (!freeSlot) return;
 
-  const startPos = gridToScreen(4, 16);
   const rect = this.add.rectangle(startPos.x, startPos.y - 14, 22, 22, 0xff6b6b).setStrokeStyle(2, 0x000000);
   rect.setDepth(50);
   const bubble = this.add.text(startPos.x, startPos.y - 36, '...', {
     fontSize: '12px', color: '#ffffff',
     backgroundColor: '#000000aa', padding: { x: 3, y: 2 }
   }).setOrigin(0.5).setDepth(51);
-
   this.customers.push({
     gridX: 4, gridY: 16,
     targetGridX: freeSlot.gx, targetGridY: freeSlot.gy,
@@ -543,6 +819,8 @@ MainScene.prototype.spawnCustomer = function() {
     tableGx: -1, tableGy: -1,
     orderedDish: '',
     order: null,
+    mode: 'queue',
+    groupSize: size,
   });
 };
 
@@ -570,11 +848,16 @@ MainScene.prototype.updateCustomers = function(delta) {
           duration: 2000,
           onComplete: function(){ reviewText.destroy(); }
         });
-        for (let t of self.tableSlots) {
-          if (t.gx === c.tableGx && t.gy === c.tableGy && t.state === 'eating') {
-            t.state = 'dirty';
-            self.dirtyTables.push(t);
-            break;
+        // 桌变脏
+        if (c.tableGx >= 0) {
+          for (let t of self.tableSlots) {
+            if (t.gx === c.tableGx && t.gy === c.tableGy && t.state === 'eating') {
+              // 检查是否所有同组顾客都吃完
+              t.state = 'dirty';
+              t.customer = null;
+              self.dirtyTables.push(t);
+              break;
+            }
           }
         }
         c.state = 'leaving';
@@ -584,6 +867,7 @@ MainScene.prototype.updateCustomers = function(delta) {
       }
     }
 
+    // 点餐队 → 点完单，去取餐队
     if (c.state === 'pickup_waiting' && c.order && c.order.stage === 'onPickup') {
       const pos = self.findFacilityPos('取餐台');
       c.targetGridX = pos.gx;
@@ -591,17 +875,20 @@ MainScene.prototype.updateCustomers = function(delta) {
       c.state = 'to_pickup';
     }
 
-    if (c.state === 'to_pickup_queue' && c.order) {
-      const spot = self.pickupSlots.find(function(s){
-        return !self.customers.some(function(cc){
-          return cc !== c &&
-                 (cc.state === 'to_pickup_queue' || cc.state === 'pickup_waiting') &&
-                 cc.targetGridX === s.gx && cc.targetGridY === s.gy;
-        });
-      });
-      if (spot) {
-        c.targetGridX = spot.gx;
-        c.targetGridY = spot.gy;
+    // 到桌子坐下 → 按铃（如果是桌边模式）
+    if (c.state === 'seated') {
+      // 桌边模式：按铃叫服务员
+      if (c.mode === 'table' && !self.tableSlots.some(function(t){
+        return t.gx === c.tableGx && t.gy === c.tableGy && t.bell;
+      })) {
+        // 找同组，只让一个人按
+        for (let t of self.tableSlots) {
+          if (t.gx === c.tableGx && t.gy === c.tableGy) {
+            t.bell = true;
+            c.bubble.setText('🔔');
+            break;
+          }
+        }
       }
     }
 
@@ -619,6 +906,10 @@ MainScene.prototype.updateCustomers = function(delta) {
 
       if (c.state === 'to_queue') c.state = 'waiting';
       else if (c.state === 'to_pickup_queue') c.state = 'pickup_waiting';
+      else if (c.state === 'to_seat') {
+        c.state = 'seated';
+        // 已经坐下，桌边模式等待按铃
+      }
       else if (c.state === 'to_pickup') {
         if (c.order) {
           const idx = self.orders.indexOf(c.order);
@@ -704,6 +995,7 @@ MainScene.prototype.update = function(time, delta) {
   this.updateCustomers(delta);
   this.updateChef(delta);
   this.updateWaiter(delta);
+  this.updateTableServer(delta);
   this.updateServer(delta);
   this.updateCleaner(delta);
 
