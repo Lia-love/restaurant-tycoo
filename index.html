@@ -20,8 +20,7 @@ const TILE_H = 28;
 const GRID_W = 8;
 const GRID_H = 17;
 const ORIGIN_X = 486;
-const ORIGIN_Y = 470;   // ★ 从 220 改到 470，地图下移居中
-
+const ORIGIN_Y = 470;
 const TOP_BAR_H = 90;
 const TIME_STEP_MS = 1250;
 
@@ -30,6 +29,105 @@ function gridToScreen(gx, gy) {
     x: ORIGIN_X + (gx - gy) * (TILE_W / 2),
     y: ORIGIN_Y + (gx + gy) * (TILE_H / 2)
   };
+}
+
+// ========== 像素小人模板 ==========
+// 每个像素点字符：
+// H=头发 S=皮肤 E=眼睛 C=衣服 P=裤子 K=鞋 B=蝴蝶结 W=帽子 .=透明
+
+const HEAD_MALE = [
+  '....HHHHHH....',
+  '..HHHHHHHHHH..',
+  '.HHHHHHHHHHHH.',
+  '.HHHHHHHHHHHH.',
+  '.HSSSSSSSSSSH.',
+  '.SSSSSSSSSSSS.',
+  '.SSEESSSSEESS.',
+  '.SSEESSSSEESS.',
+  '.SSSSSSSSSSSS.',
+  '.SSSSSSSSSSSS.',
+  '..SSSSSSSSSS..',
+  '...SSSSSSSS...',
+];
+
+const HEAD_FEMALE = [
+  'BB..HHHHHH..BB',
+  'BBHHHHHHHHHHBB',
+  '.HHHHHHHHHHHH.',
+  '.HHHHHHHHHHHH.',
+  '.HSSSSSSSSSSH.',
+  '.SSSSSSSSSSSS.',
+  '.SSEESSSSEESS.',
+  '.SSEESSSSEESS.',
+  '.SSSSSSSSSSSS.',
+  '.SSSSSSSSSSSS.',
+  '..SSSSSSSSSS..',
+  '...SSSSSSSS...',
+];
+
+const HEAD_CHEF = [
+  '..WWWWWWWWWW..',
+  '.WWWWWWWWWWWW.',
+  '.WWWWWWWWWWWW.',
+  '.HHHHHHHHHHHH.',
+  '.HSSSSSSSSSSH.',
+  '.SSSSSSSSSSSS.',
+  '.SSEESSSSEESS.',
+  '.SSEESSSSEESS.',
+  '.SSSSSSSSSSSS.',
+  '.SSSSSSSSSSSS.',
+  '..SSSSSSSSSS..',
+  '...SSSSSSSS...',
+];
+
+const BODY_COMMON = [
+  '...CCCCCCCC...',
+  '..CCCCCCCCCC..',
+  '..CCCCCCCCCC..',
+  '..CCCCCCCCCC..',
+  '..CCCCCCCCCC..',
+  '...CCCCCCCC...',
+  '...PPP..PPP...',
+  '...KKK..KKK...',
+];
+
+// 动态生成小人纹理
+function createCharTexture(scene, key, palette, headTemplate) {
+  const W = 14, H = 20;
+  const canvasEl = document.createElement('canvas');
+  canvasEl.width = W;
+  canvasEl.height = H;
+  const ctx = canvasEl.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, W, H);
+
+  const rows = headTemplate.concat(BODY_COMMON);
+
+  const colorMap = {
+    'H': palette.hair,
+    'S': palette.skin || '#ffd9b3',
+    'E': palette.eye || '#1a1a1a',
+    'C': palette.cloth,
+    'P': palette.pants || '#2c3e50',
+    'K': palette.shoes || '#222222',
+    'B': palette.bow || '#ff4488',
+    'W': palette.hat || '#ffffff',
+  };
+
+  for (let y = 0; y < rows.length; y++) {
+    const row = rows[y];
+    for (let x = 0; x < row.length; x++) {
+      const ch = row[x];
+      const color = colorMap[ch];
+      if (color) {
+        ctx.fillStyle = color;
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }
+  }
+
+  if (scene.textures.exists(key)) scene.textures.remove(key);
+  scene.textures.addCanvas(key, canvasEl);
 }
 
 const DISHES = {
@@ -101,6 +199,38 @@ MainScene.prototype = Object.create(Phaser.Scene.prototype);
 MainScene.prototype.constructor = MainScene;
 
 MainScene.prototype.create = function() {
+  const self = this;
+
+  // ===== 生成所有角色纹理 =====
+  createCharTexture(this, 'char_boss', {
+    hair: '#222222', cloth: '#3498db', skin: '#ffd9b3'
+  }, HEAD_MALE);
+  createCharTexture(this, 'char_chef', {
+    hair: '#222222', cloth: '#e67e22', skin: '#ffd9b3', hat: '#ffffff'
+  }, HEAD_CHEF);
+  createCharTexture(this, 'char_waiter', {
+    hair: '#8b4513', cloth: '#1abc9c', skin: '#ffe0c2', bow: '#ffffff'
+  }, HEAD_FEMALE);
+  createCharTexture(this, 'char_server', {
+    hair: '#ff77aa', cloth: '#f1c40f', skin: '#ffe0c2', bow: '#ff4488'
+  }, HEAD_FEMALE);
+  createCharTexture(this, 'char_cleaner', {
+    hair: '#8b4513', cloth: '#ecf0f1', skin: '#ffd9b3'
+  }, HEAD_MALE);
+
+  createCharTexture(this, 'char_cust_m1', {
+    hair: '#222222', cloth: '#e74c3c', skin: '#ffd9b3'
+  }, HEAD_MALE);
+  createCharTexture(this, 'char_cust_f1', {
+    hair: '#ff77aa', cloth: '#e74c3c', skin: '#ffe0c2', bow: '#ff4488'
+  }, HEAD_FEMALE);
+  createCharTexture(this, 'char_cust_m2', {
+    hair: '#8b4513', cloth: '#c0392b', skin: '#ffd9b3'
+  }, HEAD_MALE);
+  createCharTexture(this, 'char_cust_f2', {
+    hair: '#222222', cloth: '#c0392b', skin: '#ffe0c2', bow: '#ffcc00'
+  }, HEAD_FEMALE);
+
   this.orders = [];
   this.coinCount = 0;
   this.dirtyPlates = 0;
@@ -121,7 +251,6 @@ MainScene.prototype.create = function() {
   this.level = 1;
 
   this.dishEnabled = {};
-  const self = this;
   Object.keys(DISHES).forEach(function(name){ self.dishEnabled[name] = true; });
 
   this.queueSlots = [
@@ -178,18 +307,20 @@ MainScene.prototype.create = function() {
     self.facilities.push({ gx: f.gx, gy: f.gy, label: f.label, rect: rect });
   });
 
+  // 老板（image）
   this.playerGridX = 5;
   this.playerGridY = 10;
   const pos = gridToScreen(this.playerGridX, this.playerGridY);
-  this.player = this.add.rectangle(pos.x, pos.y - 14, 28, 28, 0x4a90e2).setStrokeStyle(2, 0xffcc66);
+  this.player = this.add.image(pos.x, pos.y - 22, 'char_boss').setScale(2.5);
   this.player.setDepth(this.playerGridX + this.playerGridY + 1);
 
-  this.chef    = this.makeEmployee(2, 3,  0xe67e22, '厨');
-  this.waiter  = this.makeEmployee(5, 7,  0x1abc9c, '送');
-  this.server  = this.makeEmployee(2, 10, 0xf1c40f, '服');
-  this.cleaner = this.makeEmployee(6, 9,  0xffffff, '洗');
+  // 员工（image）
+  this.chef    = this.makeEmployee(2, 3,  'char_chef',    '厨', '#ffffff');
+  this.waiter  = this.makeEmployee(5, 7,  'char_waiter',  '送', '#ffffff');
+  this.server  = this.makeEmployee(2, 10, 'char_server',  '服', '#000000');
+  this.cleaner = this.makeEmployee(6, 9,  'char_cleaner', '洗', '#000000');
 
-  // 摇杆（中偏下位置）
+  // 摇杆
   this.joyBase = this.add.circle(130, 1050, 75, 0xffffff, 0.2).setDepth(100);
   this.joyKnob = this.add.circle(130, 1050, 38, 0xffcc66, 0.8).setDepth(101);
   this.isJoyActive = false;
@@ -230,14 +361,13 @@ MainScene.prototype.create = function() {
     self.joyKnob.y = 1050;
   });
 
-  // 互动按钮
   this.interactButton = this.add.circle(590, 1050, 58, 0xe74c3c, 0.85).setDepth(100).setVisible(false);
   this.interactButton.setInteractive({ useHandCursor: true });
   this.interactText = this.add.text(590, 1050, '接单+收钱', {
     fontSize: '18px', color: '#ffffff', fontStyle: 'bold'
   }).setOrigin(0.5).setDepth(101).setVisible(false);
 
-  // ===== 顶部状态栏 =====
+  // 顶部状态栏
   this.add.rectangle(360, TOP_BAR_H/2, 720, TOP_BAR_H, 0x000000, 0.78).setDepth(400);
   this.add.rectangle(360, TOP_BAR_H, 720, 2, 0xffcc66, 0.5).setDepth(401);
   this.timeText = this.add.text(20, 22, '1年1月 06:00', {
@@ -263,28 +393,24 @@ MainScene.prototype.create = function() {
     fontSize: '24px', color: '#ffcc66', fontStyle: 'bold'
   }).setOrigin(0.5).setDepth(200).setVisible(false);
 
-  // ===== 底部 5 按钮（居中，全可见）=====
+  // 底部按钮
   const btnLabels = ['建造', '公告栏', '观光', '店铺', '菜单'];
   const btnColors = [0x3498db, 0x9b59b6, 0x1abc9c, 0xe67e22, 0xc0392b];
   this.bottomButtons = [];
-  // 按钮宽 120，间距 144（12 + 60 + i*144）
   for (let i = 0; i < 5; i++) {
     const cx = 72 + i * 144;
     const cy = 1180;
     const bg = this.add.rectangle(cx, cy, 120, 70, btnColors[i], 0.92)
       .setStrokeStyle(2, 0xffcc66).setDepth(400);
     bg.setInteractive({ useHandCursor: true });
-    const label = this.add.text(cx, cy, btnLabels[i], {
+    this.add.text(cx, cy, btnLabels[i], {
       fontSize: '20px', color: '#ffffff', fontStyle: 'bold'
     }).setOrigin(0.5).setDepth(401);
     const idx = i;
-    bg.on('pointerdown', function(){
-      self.openBottomPanel(idx);
-    });
-    this.bottomButtons.push({ bg: bg, label: label });
+    bg.on('pointerdown', function(){ self.openBottomPanel(idx); });
+    this.bottomButtons.push({ bg: bg });
   }
 
-  // 互动按钮逻辑
   this.interactButton.on('pointerdown', function(){
     if (!self.currentFacility) return;
     if (self.currentFacility.label === '工作电脑') {
@@ -471,17 +597,17 @@ MainScene.prototype.updateOrderCount = function() {
   this.orderText && this.orderText.setText('进行中订单: ' + this.orders.length);
 };
 
-MainScene.prototype.makeEmployee = function(gx, gy, color, tag) {
+// ★ 员工：改用 image
+MainScene.prototype.makeEmployee = function(gx, gy, texKey, tag, tagColor) {
   const emp = {
     gx: gx, gy: gy, tx: gx, ty: gy,
     state: 'idle', timer: 0,
     currentOrder: null,
     currentTable: null,
-    sprite: this.add.rectangle(0, 0, 26, 26, color).setStrokeStyle(2, 0x000000),
+    sprite: this.add.image(0, 0, texKey).setScale(2.5),
     label: this.add.text(0, 0, tag, {
-      fontSize: '12px',
-      color: color === 0xffffff ? '#000' : '#fff',
-      fontStyle: 'bold'
+      fontSize: '12px', color: tagColor || '#ffffff', fontStyle: 'bold',
+      backgroundColor: '#00000088', padding: { x: 2, y: 1 }
     }).setOrigin(0.5)
   };
   this.updateEmployeeSprite(emp);
@@ -510,10 +636,10 @@ MainScene.prototype.showFeedback = function(msg) {
 MainScene.prototype.updateEmployeeSprite = function(emp) {
   const pos = gridToScreen(emp.gx, emp.gy);
   emp.sprite.x = pos.x;
-  emp.sprite.y = pos.y - 14;
+  emp.sprite.y = pos.y - 22;
   emp.sprite.setDepth(emp.gx + emp.gy + 1);
   emp.label.x = pos.x;
-  emp.label.y = pos.y - 14;
+  emp.label.y = pos.y - 50;
   emp.label.setDepth(emp.gx + emp.gy + 2);
 };
 
@@ -740,7 +866,6 @@ MainScene.prototype.updateServer = function(delta) {
   } else if (s.state === 'to_clean_area') {
     if (this.moveEmp(s, s.tx, s.ty, 0.009, delta)) {
       this.dirtyPlates++;
-      this.dirtyText && this.dirtyText.setText('脏盘: ' + this.dirtyPlates);
       s.state = 'idle';
     }
   }
@@ -764,7 +889,6 @@ MainScene.prototype.updateCleaner = function(delta) {
   } else if (c.state === 'to_sink') {
     if (this.moveEmp(c, c.tx, c.ty, 0.009, delta)) {
       if (this.dirtyPlates > 0) this.dirtyPlates--;
-      this.dirtyText && this.dirtyText.setText('脏盘: ' + this.dirtyPlates);
       c.state = 'idle';
     }
   }
@@ -791,6 +915,12 @@ MainScene.prototype.findFreeGroupTable = function() {
   return null;
 };
 
+// 随机顾客纹理
+MainScene.prototype.pickCustomerTexture = function() {
+  const keys = ['char_cust_m1', 'char_cust_f1', 'char_cust_m2', 'char_cust_f2'];
+  return keys[Math.floor(Math.random() * keys.length)];
+};
+
 MainScene.prototype.spawnCustomer = function() {
   const rand = Math.random();
   if (rand < 0.2) this.spawnGroup(2);
@@ -810,8 +940,9 @@ MainScene.prototype.spawnSingle = function() {
       });
     });
     if (!freeSlot) return;
-    const rect = this.add.rectangle(startPos.x, startPos.y - 14, 22, 22, 0xff6b6b).setStrokeStyle(2, 0x000000).setDepth(50);
-    const bubble = this.add.text(startPos.x, startPos.y - 36, '...', {
+    const texKey = this.pickCustomerTexture();
+    const rect = this.add.image(startPos.x, startPos.y - 18, texKey).setScale(2.0).setDepth(50);
+    const bubble = this.add.text(startPos.x, startPos.y - 45, '...', {
       fontSize: '12px', color: '#ffffff', backgroundColor: '#000000aa', padding: { x: 3, y: 2 }
     }).setOrigin(0.5).setDepth(51);
     this.customers.push({
@@ -825,8 +956,9 @@ MainScene.prototype.spawnSingle = function() {
     const table = this.findFreeOneTable();
     if (!table) return;
     table.state = 'eating'; table.eaters = 1;
-    const rect = this.add.rectangle(startPos.x, startPos.y - 14, 22, 22, 0xe74c3c).setStrokeStyle(2, 0x000000).setDepth(50);
-    const bubble = this.add.text(startPos.x, startPos.y - 36, '...', {
+    const texKey = this.pickCustomerTexture();
+    const rect = this.add.image(startPos.x, startPos.y - 18, texKey).setScale(2.0).setDepth(50);
+    const bubble = this.add.text(startPos.x, startPos.y - 45, '...', {
       fontSize: '12px', color: '#ffffff', backgroundColor: '#000000aa', padding: { x: 3, y: 2 }
     }).setOrigin(0.5).setDepth(51);
     this.customers.push({
@@ -847,8 +979,9 @@ MainScene.prototype.spawnGroup = function(size) {
   const startPos = gridToScreen(4, 16);
 
   for (let i = 0; i < size - 1; i++) {
-    const rect = this.add.rectangle(startPos.x + (i - 1) * 15, startPos.y - 14, 22, 22, 0xe74c3c).setStrokeStyle(2, 0x000000).setDepth(50);
-    const bubble = this.add.text(rect.x, rect.y - 22, '...', {
+    const texKey = this.pickCustomerTexture();
+    const rect = this.add.image(startPos.x + (i - 1) * 15, startPos.y - 18, texKey).setScale(2.0).setDepth(50);
+    const bubble = this.add.text(rect.x, rect.y - 30, '...', {
       fontSize: '12px', color: '#ffffff', backgroundColor: '#000000aa', padding: { x: 3, y: 2 }
     }).setOrigin(0.5).setDepth(51);
     const offsetX = (i % 2) * 0.4 - 0.2;
@@ -869,8 +1002,9 @@ MainScene.prototype.spawnGroup = function(size) {
     });
   });
   if (!freeSlot) return;
-  const rect = this.add.rectangle(startPos.x, startPos.y - 14, 22, 22, 0xff6b6b).setStrokeStyle(2, 0x000000).setDepth(50);
-  const bubble = this.add.text(startPos.x, startPos.y - 36, '...', {
+  const texKey = this.pickCustomerTexture();
+  const rect = this.add.image(startPos.x, startPos.y - 18, texKey).setScale(2.0).setDepth(50);
+  const bubble = this.add.text(startPos.x, startPos.y - 45, '...', {
     fontSize: '12px', color: '#ffffff', backgroundColor: '#000000aa', padding: { x: 3, y: 2 }
   }).setOrigin(0.5).setDepth(51);
   this.customers.push({
@@ -983,9 +1117,9 @@ MainScene.prototype.updateCustomers = function(delta) {
     }
 
     const pos = gridToScreen(c.gridX, c.gridY);
-    c.rect.x = pos.x; c.rect.y = pos.y - 14;
+    c.rect.x = pos.x; c.rect.y = pos.y - 18;
     c.bubble.x = pos.x;
-    c.bubble.y = pos.y - 36 + Math.sin(this.time.now / 300) * 2;
+    c.bubble.y = pos.y - 45 + Math.sin(this.time.now / 300) * 2;
     c.rect.setDepth(c.gridX + c.gridY + 1);
     c.bubble.setDepth(c.gridX + c.gridY + 2);
   }
@@ -994,7 +1128,6 @@ MainScene.prototype.updateCustomers = function(delta) {
 MainScene.prototype.update = function(time, delta) {
   const self = this;
 
-  // 时间推进
   this.timeAccum += delta;
   while (this.timeAccum >= TIME_STEP_MS) {
     this.timeAccum -= TIME_STEP_MS;
@@ -1037,7 +1170,7 @@ MainScene.prototype.update = function(time, delta) {
     this.playerGridY = Phaser.Math.Clamp(this.playerGridY, 0, GRID_H - 1);
     const pos = gridToScreen(this.playerGridX, this.playerGridY);
     this.player.x = pos.x;
-    this.player.y = pos.y - 14;
+    this.player.y = pos.y - 22;
     this.player.setDepth(this.playerGridX + this.playerGridY + 1);
   }
 
