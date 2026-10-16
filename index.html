@@ -15,12 +15,11 @@
 <div id="game"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.80.0/phaser.min.js"></script>
 <script>
-// ===== 正俯视布局 =====
-const TILE = 64;              // 每格 64×64
+const TILE = 64;
 const GRID_W = 8;
 const GRID_H = 17;
-const ORIGIN_X = 104;         // (720 - 8*64)/2 = 104
-const ORIGIN_Y = 92;          // 顶栏 90 之后
+const ORIGIN_X = 104;
+const ORIGIN_Y = 92;
 const TOP_BAR_H = 90;
 const TIME_STEP_MS = 1250;
 
@@ -33,90 +32,45 @@ function gridToScreen(gx, gy) {
 
 // ========== 像素小人模板 ==========
 const HEAD_MALE = [
-  '....HHHHHH....',
-  '..HHHHHHHHHH..',
-  '.HHHHHHHHHHHH.',
-  '.HHHHHHHHHHHH.',
-  '.HSSSSSSSSSSH.',
-  '.SSSSSSSSSSSS.',
-  '.SSEESSSSEESS.',
-  '.SSEESSSSEESS.',
-  '.SSSSSSSSSSSS.',
-  '.SSSSSSSSSSSS.',
-  '..SSSSSSSSSS..',
-  '...SSSSSSSS...',
+  '....HHHHHH....','..HHHHHHHHHH..','.HHHHHHHHHHHH.','.HHHHHHHHHHHH.',
+  '.HSSSSSSSSSSH.','.SSSSSSSSSSSS.','.SSEESSSSEESS.','.SSEESSSSEESS.',
+  '.SSSSSSSSSSSS.','.SSSSSSSSSSSS.','..SSSSSSSSSS..','...SSSSSSSS...',
 ];
 const HEAD_FEMALE = [
-  'BB..HHHHHH..BB',
-  'BBHHHHHHHHHHBB',
-  '.HHHHHHHHHHHH.',
-  '.HHHHHHHHHHHH.',
-  '.HSSSSSSSSSSH.',
-  '.SSSSSSSSSSSS.',
-  '.SSEESSSSEESS.',
-  '.SSEESSSSEESS.',
-  '.SSSSSSSSSSSS.',
-  '.SSSSSSSSSSSS.',
-  '..SSSSSSSSSS..',
-  '...SSSSSSSS...',
+  'BB..HHHHHH..BB','BBHHHHHHHHHHBB','.HHHHHHHHHHHH.','.HHHHHHHHHHHH.',
+  '.HSSSSSSSSSSH.','.SSSSSSSSSSSS.','.SSEESSSSEESS.','.SSEESSSSEESS.',
+  '.SSSSSSSSSSSS.','.SSSSSSSSSSSS.','..SSSSSSSSSS..','...SSSSSSSS...',
 ];
 const HEAD_CHEF = [
-  '..WWWWWWWWWW..',
-  '.WWWWWWWWWWWW.',
-  '.WWWWWWWWWWWW.',
-  '.HHHHHHHHHHHH.',
-  '.HSSSSSSSSSSH.',
-  '.SSSSSSSSSSSS.',
-  '.SSEESSSSEESS.',
-  '.SSEESSSSEESS.',
-  '.SSSSSSSSSSSS.',
-  '.SSSSSSSSSSSS.',
-  '..SSSSSSSSSS..',
-  '...SSSSSSSS...',
+  '..WWWWWWWWWW..','.WWWWWWWWWWWW.','.WWWWWWWWWWWW.','.HHHHHHHHHHHH.',
+  '.HSSSSSSSSSSH.','.SSSSSSSSSSSS.','.SSEESSSSEESS.','.SSEESSSSEESS.',
+  '.SSSSSSSSSSSS.','.SSSSSSSSSSSS.','..SSSSSSSSSS..','...SSSSSSSS...',
 ];
 const BODY_COMMON = [
-  '...CCCCCCCC...',
-  '..CCCCCCCCCC..',
-  '..CCCCCCCCCC..',
-  '..CCCCCCCCCC..',
-  '..CCCCCCCCCC..',
-  '...CCCCCCCC...',
-  '...PPP..PPP...',
-  '...KKK..KKK...',
+  '...CCCCCCCC...','..CCCCCCCCCC..','..CCCCCCCCCC..','..CCCCCCCCCC..',
+  '..CCCCCCCCCC..','...CCCCCCCC...','...PPP..PPP...','...KKK..KKK...',
 ];
 
 function createCharTexture(scene, key, palette, headTemplate) {
   const W = 14, H = 20;
-  const canvasEl = document.createElement('canvas');
-  canvasEl.width = W;
-  canvasEl.height = H;
-  const ctx = canvasEl.getContext('2d');
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
   ctx.imageSmoothingEnabled = false;
-  ctx.clearRect(0, 0, W, H);
   const rows = headTemplate.concat(BODY_COMMON);
-  const colorMap = {
-    'H': palette.hair,
-    'S': palette.skin || '#ffd9b3',
-    'E': palette.eye || '#1a1a1a',
-    'C': palette.cloth,
-    'P': palette.pants || '#2c3e50',
-    'K': palette.shoes || '#222222',
-    'B': palette.bow || '#ff4488',
-    'W': palette.hat || '#ffffff',
+  const cm = {
+    'H': palette.hair, 'S': palette.skin || '#ffd9b3', 'E': palette.eye || '#1a1a1a',
+    'C': palette.cloth, 'P': palette.pants || '#2c3e50', 'K': palette.shoes || '#222222',
+    'B': palette.bow || '#ff4488', 'W': palette.hat || '#ffffff',
   };
   for (let y = 0; y < rows.length; y++) {
-    const row = rows[y];
-    for (let x = 0; x < row.length; x++) {
-      const ch = row[x];
-      const color = colorMap[ch];
-      if (color) {
-        ctx.fillStyle = color;
-        ctx.fillRect(x, y, 1, 1);
-      }
+    for (let x = 0; x < rows[y].length; x++) {
+      const col = cm[rows[y][x]];
+      if (col) { ctx.fillStyle = col; ctx.fillRect(x, y, 1, 1); }
     }
   }
   if (scene.textures.exists(key)) scene.textures.remove(key);
-  scene.textures.addCanvas(key, canvasEl);
+  scene.textures.addCanvas(key, c);
 }
 
 const DISHES = {
@@ -187,8 +141,45 @@ function MainScene() {
 MainScene.prototype = Object.create(Phaser.Scene.prototype);
 MainScene.prototype.constructor = MainScene;
 
+// ========== 碰撞检测 ==========
+MainScene.prototype.isBlocked = function(gx, gy) {
+  const x = Math.round(gx);
+  const y = Math.round(gy);
+  if (x < 0 || x >= GRID_W || y < 0 || y >= GRID_H) return true;
+  return this.obstacleGrid[y][x];
+};
+
+// 找目标设施旁边离 from 最近的可通行格子
+MainScene.prototype.getAdjacentReachable = function(facGx, facGy, fromGx, fromGy) {
+  const dirs = [
+    {dx: 0, dy: 1}, {dx: 0, dy: -1}, {dx: -1, dy: 0}, {dx: 1, dy: 0},
+    {dx: -1, dy: 1}, {dx: 1, dy: 1}, {dx: -1, dy: -1}, {dx: 1, dy: -1},
+  ];
+  let best = null, bestDist = Infinity;
+  for (let i = 0; i < dirs.length; i++) {
+    const gx = facGx + dirs[i].dx;
+    const gy = facGy + dirs[i].dy;
+    if (gx < 0 || gx >= GRID_W || gy < 0 || gy >= GRID_H) continue;
+    if (this.obstacleGrid[gy][gx]) continue;
+    const d = (gx - fromGx) * (gx - fromGx) + (gy - fromGy) * (gy - fromGy);
+    if (d < bestDist) { bestDist = d; best = {gx: gx, gy: gy}; }
+  }
+  return best || {gx: facGx, gy: facGy};
+};
+
 MainScene.prototype.create = function() {
   const self = this;
+
+  // ===== 生成障碍物网格 =====
+  this.obstacleGrid = [];
+  for (let y = 0; y < GRID_H; y++) {
+    this.obstacleGrid.push([]);
+    for (let x = 0; x < GRID_W; x++) this.obstacleGrid[y].push(false);
+  }
+  FACILITY_LIST.forEach(function(f) {
+    if (f.label === '大门') return; // 大门可通行
+    self.obstacleGrid[f.gy][f.gx] = true;
+  });
 
   // ===== 角色纹理 =====
   createCharTexture(this, 'char_boss',    { hair: '#222222', cloth: '#3498db', skin: '#ffd9b3' }, HEAD_MALE);
@@ -232,7 +223,7 @@ MainScene.prototype.create = function() {
     .filter(function(f){ return f.label.indexOf('桌') !== -1; })
     .map(function(f){ return { gx: f.gx, gy: f.gy, state: 'free', bell: false, eaters: 0 }; });
 
-  // ===== 网格（正俯视方块）=====
+  // 网格
   this.graphics = this.add.graphics();
   this.graphics.lineStyle(1, 0x4a2f1e, 0.6);
   for (let gy = 0; gy < GRID_H; gy++) {
@@ -243,12 +234,18 @@ MainScene.prototype.create = function() {
     }
   }
 
-  // 分隔线：厨房/前区/就餐区
-  this.drawHorizLine(4.5);
-  this.drawHorizLine(5.5);
-  this.drawHorizLine(10.5);
+  // 分隔线
+  [4.5, 5.5, 10.5].forEach(function(gy){
+    const y = ORIGIN_Y + gy * TILE;
+    const g = self.add.graphics();
+    g.lineStyle(2, 0xffcc66, 0.35);
+    g.beginPath();
+    g.moveTo(ORIGIN_X, y);
+    g.lineTo(ORIGIN_X + GRID_W * TILE, y);
+    g.strokePath();
+  });
 
-  // 队伍标签
+  // 队列标签
   const qPos = gridToScreen(3, 9);
   this.add.text(qPos.x, qPos.y, '点餐队', {
     fontSize: '11px', color: '#ff9999', backgroundColor: '#00000088', padding: { x: 2, y: 1 }
@@ -259,8 +256,11 @@ MainScene.prototype.create = function() {
   }).setOrigin(0.5).setDepth(3);
 
   // 门标记
-  this.addDoorMarker(4, 8);
-  this.addDoorMarker(7, 8);
+  [ {gx:4, gy:8}, {gx:7, gy:8} ].forEach(function(d){
+    const p = gridToScreen(d.gx, d.gy);
+    self.add.rectangle(p.x, p.y + TILE/2 - 4, TILE, 6, 0x8b4513).setDepth(200);
+    self.add.text(p.x, p.y + TILE/2 - 4, '🚪', { fontSize: '14px' }).setOrigin(0.5).setDepth(201);
+  });
 
   // 设施
   this.facilities = [];
@@ -540,25 +540,6 @@ MainScene.prototype.openBottomPanel = function(idx) {
   }).setOrigin(0.5).setDepth(503));
 };
 
-MainScene.prototype.addDoorMarker = function(gx, gy) {
-  const pos = gridToScreen(gx, gy);
-  this.add.rectangle(pos.x, pos.y + TILE/2 - 4, TILE, 6, 0x8b4513).setDepth(200);
-  this.add.text(pos.x, pos.y + TILE/2 - 4, '🚪', {
-    fontSize: '14px'
-  }).setOrigin(0.5).setDepth(201);
-};
-
-// 横向分隔线
-MainScene.prototype.drawHorizLine = function(gy) {
-  const y = ORIGIN_Y + gy * TILE;
-  const g = this.add.graphics();
-  g.lineStyle(2, 0xffcc66, 0.35);
-  g.beginPath();
-  g.moveTo(ORIGIN_X, y);
-  g.lineTo(ORIGIN_X + GRID_W * TILE, y);
-  g.strokePath();
-};
-
 MainScene.prototype.makeEmployee = function(gx, gy, texKey, tag, tagColor) {
   const emp = {
     gx: gx, gy: gy, tx: gx, ty: gy,
@@ -593,15 +574,28 @@ MainScene.prototype.updateEmployeeSprite = function(emp) {
   emp.label.setDepth(emp.gy * 100 + emp.gx + 11);
 };
 
+// ★ 带碰撞的员工移动
 MainScene.prototype.moveEmp = function(emp, tx, ty, speed, delta) {
   const dx = tx - emp.gx;
   const dy = ty - emp.gy;
   const dist = Math.sqrt(dx * dx + dy * dy);
   if (dist < 0.08) { emp.gx = tx; emp.gy = ty; return true; }
   const step = speed * delta;
-  if (step >= dist) { emp.gx = tx; emp.gy = ty; return true; }
-  emp.gx += (dx / dist) * step;
-  emp.gy += (dy / dist) * step;
+  let mx = (dx / dist) * step;
+  let my = (dy / dist) * step;
+  if (step >= dist) { mx = dx; my = dy; }
+
+  // 分轴移动 + 碰撞
+  const nx = emp.gx + mx;
+  if (!this.isBlocked(nx, emp.gy)) emp.gx = nx;
+  const ny = emp.gy + my;
+  if (!this.isBlocked(emp.gx, ny)) emp.gy = ny;
+
+  const ndx = tx - emp.gx;
+  const ndy = ty - emp.gy;
+  if (Math.sqrt(ndx * ndx + ndy * ndy) < 0.1) {
+    return true;
+  }
   return false;
 };
 
@@ -621,7 +615,8 @@ MainScene.prototype.updateChef = function(delta) {
     if (order) {
       const pos = this.findFacilityPos(order.station);
       if (pos) {
-        chef.tx = pos.gx; chef.ty = pos.gy;
+        const work = this.getAdjacentReachable(pos.gx, pos.gy, chef.gx, chef.gy);
+        chef.tx = work.gx; chef.ty = work.gy;
         chef.state = 'to_station';
         chef.currentOrder = order;
         order.stage = 'chef_working';
@@ -635,7 +630,8 @@ MainScene.prototype.updateChef = function(delta) {
     chef.timer -= delta;
     if (chef.timer <= 0) {
       const pos = this.findFacilityPos('出餐台');
-      chef.tx = pos.gx; chef.ty = pos.gy;
+      const work = this.getAdjacentReachable(pos.gx, pos.gy, chef.gx, chef.gy);
+      chef.tx = work.gx; chef.ty = work.gy;
       chef.state = 'to_pass';
     }
   } else if (chef.state === 'to_pass') {
@@ -657,7 +653,8 @@ MainScene.prototype.updateWaiter = function(delta) {
     const passOrder = this.orders.find(function(o){ return o.stage === 'onPass'; });
     if (passOrder) {
       const pos = this.findFacilityPos('出餐台');
-      w.tx = pos.gx; w.ty = pos.gy;
+      const work = this.getAdjacentReachable(pos.gx, pos.gy, w.gx, w.gy);
+      w.tx = work.gx; w.ty = work.gy;
       w.state = 'to_pass_take';
       w.currentOrder = passOrder;
       passOrder.stage = 'waiter_taking';
@@ -665,7 +662,8 @@ MainScene.prototype.updateWaiter = function(delta) {
       const frontOrder = this.orders.find(function(o){ return o.type === 'front' && o.stage === 'new'; });
       if (frontOrder) {
         const pos = this.findFacilityPos(frontOrder.station);
-        w.tx = pos.gx; w.ty = pos.gy;
+        const work = this.getAdjacentReachable(pos.gx, pos.gy, w.gx, w.gy);
+        w.tx = work.gx; w.ty = work.gy;
         w.state = 'to_front';
         w.currentOrder = frontOrder;
         frontOrder.stage = 'waiter_working';
@@ -674,7 +672,8 @@ MainScene.prototype.updateWaiter = function(delta) {
   } else if (w.state === 'to_pass_take') {
     if (this.moveEmp(w, w.tx, w.ty, 0.013, delta)) {
       const pos = this.findFacilityPos('取餐台');
-      w.tx = pos.gx; w.ty = pos.gy;
+      const work = this.getAdjacentReachable(pos.gx, pos.gy, w.gx, w.gy);
+      w.tx = work.gx; w.ty = work.gy;
       w.state = 'to_pickup_pass';
     }
   } else if (w.state === 'to_pickup_pass') {
@@ -693,7 +692,8 @@ MainScene.prototype.updateWaiter = function(delta) {
     w.timer -= delta;
     if (w.timer <= 0) {
       const pos = this.findFacilityPos('取餐台');
-      w.tx = pos.gx; w.ty = pos.gy;
+      const work = this.getAdjacentReachable(pos.gx, pos.gy, w.gx, w.gy);
+      w.tx = work.gx; w.ty = work.gy;
       w.state = 'to_pickup_front';
     }
   } else if (w.state === 'to_pickup_front') {
@@ -714,7 +714,8 @@ MainScene.prototype.updateServer = function(delta) {
     const belled = this.tableSlots.find(function(t){ return t.bell; });
     if (belled) {
       this.setEmployeeTag(s, '桌');
-      s.tx = belled.gx; s.ty = belled.gy + 1;
+      const work = this.getAdjacentReachable(belled.gx, belled.gy, s.gx, s.gy);
+      s.tx = work.gx; s.ty = work.gy;
       s.currentTable = belled;
       s.state = 'to_table_order';
       return;
@@ -723,7 +724,8 @@ MainScene.prototype.updateServer = function(delta) {
     if (tableReady) {
       this.setEmployeeTag(s, '桌');
       const pos = this.findFacilityPos('取餐台');
-      s.tx = pos.gx; s.ty = pos.gy;
+      const work = this.getAdjacentReachable(pos.gx, pos.gy, s.gx, s.gy);
+      s.tx = work.gx; s.ty = work.gy;
       s.state = 'to_pickup_table';
       s.currentOrder = tableReady;
       return;
@@ -731,7 +733,8 @@ MainScene.prototype.updateServer = function(delta) {
     if (this.dirtyTables.length > 0) {
       this.setEmployeeTag(s, '服');
       const t = this.dirtyTables[0];
-      s.tx = t.gx; s.ty = t.gy + 1;
+      const work = this.getAdjacentReachable(t.gx, t.gy, s.gx, s.gy);
+      s.tx = work.gx; s.ty = work.gy;
       s.currentTable = t;
       s.state = 'to_dirty_table';
       return;
@@ -770,7 +773,8 @@ MainScene.prototype.updateServer = function(delta) {
       }
       s.currentTable = null;
       const cashier = this.findFacilityPos('点餐台');
-      s.tx = cashier.gx; s.ty = cashier.gy + 1;
+      const work = this.getAdjacentReachable(cashier.gx, cashier.gy, s.gx, s.gy);
+      s.tx = work.gx; s.ty = work.gy;
       s.state = 'to_cashier';
     }
   } else if (s.state === 'to_cashier') {
@@ -778,8 +782,8 @@ MainScene.prototype.updateServer = function(delta) {
   } else if (s.state === 'to_pickup_table') {
     if (this.moveEmp(s, s.tx, s.ty, 0.013, delta)) {
       if (s.currentOrder) {
-        s.tx = s.currentOrder.tableGx;
-        s.ty = s.currentOrder.tableGy + 1;
+        const work = this.getAdjacentReachable(s.currentOrder.tableGx, s.currentOrder.tableGy, s.gx, s.gy);
+        s.tx = work.gx; s.ty = work.gy;
         s.state = 'to_table_deliver';
       } else { s.state = 'idle'; }
     }
@@ -808,7 +812,8 @@ MainScene.prototype.updateServer = function(delta) {
         s.currentTable = null;
       }
       const pos = this.findFacilityPos('清洗区');
-      s.tx = pos.gx; s.ty = pos.gy;
+      const work = this.getAdjacentReachable(pos.gx, pos.gy, s.gx, s.gy);
+      s.tx = work.gx; s.ty = work.gy;
       s.state = 'to_clean_area';
     }
   } else if (s.state === 'to_clean_area') {
@@ -825,13 +830,15 @@ MainScene.prototype.updateCleaner = function(delta) {
   if (c.state === 'idle') {
     if (this.dirtyPlates > 0) {
       const pos = this.findFacilityPos('清洗区');
-      c.tx = pos.gx; c.ty = pos.gy;
+      const work = this.getAdjacentReachable(pos.gx, pos.gy, c.gx, c.gy);
+      c.tx = work.gx; c.ty = work.gy;
       c.state = 'to_clean_area';
     }
   } else if (c.state === 'to_clean_area') {
     if (this.moveEmp(c, c.tx, c.ty, 0.013, delta)) {
       const pos = this.findFacilityPos('洗碗池');
-      c.tx = pos.gx; c.ty = pos.gy;
+      const work = this.getAdjacentReachable(pos.gx, pos.gy, c.gx, c.gy);
+      c.tx = work.gx; c.ty = work.gy;
       c.state = 'to_sink';
     }
   } else if (c.state === 'to_sink') {
@@ -903,6 +910,7 @@ MainScene.prototype.spawnSingle = function() {
     const table = this.findFreeOneTable();
     if (!table) return;
     table.state = 'eating'; table.eaters = 1;
+    const work = this.getAdjacentReachable(table.gx, table.gy, 4, 16);
     const texKey = this.pickCustomerTexture();
     const rect = this.add.image(startPos.x, startPos.y - 8, texKey).setScale(2.0).setDepth(50);
     const bubble = this.add.text(startPos.x, startPos.y - 38, '...', {
@@ -910,7 +918,7 @@ MainScene.prototype.spawnSingle = function() {
     }).setOrigin(0.5).setDepth(51);
     this.customers.push({
       gridX: 4, gridY: 16,
-      targetGridX: table.gx, targetGridY: table.gy,
+      targetGridX: work.gx, targetGridY: work.gy,
       state: 'to_seat', rect: rect, bubble: bubble,
       eatTimer: 0, tableGx: table.gx, tableGy: table.gy,
       orderedDish: '', order: null, mode: 'table',
@@ -924,22 +932,23 @@ MainScene.prototype.spawnGroup = function(size) {
   if (!table) return;
   table.state = 'eating'; table.eaters = size - 1;
   const startPos = gridToScreen(4, 16);
+
   for (let i = 0; i < size - 1; i++) {
+    const work = this.getAdjacentReachable(table.gx, table.gy, 4 + i * 0.3, 16);
     const texKey = this.pickCustomerTexture();
     const rect = this.add.image(startPos.x + (i - 1) * 15, startPos.y - 8, texKey).setScale(2.0).setDepth(50);
     const bubble = this.add.text(rect.x, rect.y - 30, '...', {
       fontSize: '12px', color: '#ffffff', backgroundColor: '#000000aa', padding: { x: 3, y: 2 }
     }).setOrigin(0.5).setDepth(51);
-    const offsetX = (i % 2) * 0.4 - 0.2;
-    const offsetY = Math.floor(i / 2) * 0.4 - 0.2;
     this.customers.push({
       gridX: 4, gridY: 16,
-      targetGridX: table.gx + offsetX, targetGridY: table.gy + offsetY,
+      targetGridX: work.gx, targetGridY: work.gy,
       state: 'to_seat', rect: rect, bubble: bubble,
       eatTimer: 0, tableGx: table.gx, tableGy: table.gy,
       orderedDish: '', order: null, mode: 'table', groupSize: size,
     });
   }
+
   const freeSlot = this.queueSlots.find(function(slot){
     return !self.customers.some(function(c){
       return (c.state === 'to_queue' || c.state === 'waiting') &&
@@ -1001,7 +1010,8 @@ MainScene.prototype.updateCustomers = function(delta) {
 
     if (c.state === 'pickup_waiting' && c.order && c.order.stage === 'onPickup') {
       const pos = self.findFacilityPos('取餐台');
-      c.targetGridX = pos.gx; c.targetGridY = pos.gy + 1;
+      const work = self.getAdjacentReachable(pos.gx, pos.gy, c.gridX, c.gridY);
+      c.targetGridX = work.gx; c.targetGridY = work.gy;
       c.state = 'to_pickup';
     }
 
@@ -1025,8 +1035,13 @@ MainScene.prototype.updateCustomers = function(delta) {
     const moveSpeed = 0.007 * delta;
 
     if (dist > 0.08) {
-      c.gridX += (dx / dist) * moveSpeed;
-      c.gridY += (dy / dist) * moveSpeed;
+      let mx = (dx / dist) * moveSpeed;
+      let my = (dy / dist) * moveSpeed;
+      if (moveSpeed >= dist) { mx = dx; my = dy; }
+      const nx = c.gridX + mx;
+      if (!self.isBlocked(nx, c.gridY)) c.gridX = nx;
+      const ny = c.gridY + my;
+      if (!self.isBlocked(c.gridX, ny)) c.gridY = ny;
     } else {
       c.gridX = c.targetGridX;
       c.gridY = c.targetGridY;
@@ -1044,7 +1059,8 @@ MainScene.prototype.updateCustomers = function(delta) {
         if (freeTable) {
           freeTable.state = 'eating'; freeTable.eaters = 1;
           c.tableGx = freeTable.gx; c.tableGy = freeTable.gy;
-          c.targetGridX = freeTable.gx; c.targetGridY = freeTable.gy;
+          const work = self.getAdjacentReachable(freeTable.gx, freeTable.gy, c.gridX, c.gridY);
+          c.targetGridX = work.gx; c.targetGridY = work.gy;
           c.state = 'to_table';
         } else {
           c.state = 'leaving'; c.targetGridX = 4; c.targetGridY = 16;
@@ -1105,8 +1121,11 @@ MainScene.prototype.update = function(time, delta) {
   }
 
   if (dx !== 0 || dy !== 0) {
-    this.playerGridX += dx * delta * 0.0018;
-    this.playerGridY += dy * delta * 0.0018;
+    const spd = delta * 0.0018;
+    const nx = this.playerGridX + dx * spd;
+    if (!this.isBlocked(nx, this.playerGridY)) this.playerGridX = nx;
+    const ny = this.playerGridY + dy * spd;
+    if (!this.isBlocked(this.playerGridX, ny)) this.playerGridY = ny;
     this.playerGridX = Phaser.Math.Clamp(this.playerGridX, 0, GRID_W - 1);
     this.playerGridY = Phaser.Math.Clamp(this.playerGridY, 0, GRID_H - 1);
     const pos = gridToScreen(this.playerGridX, this.playerGridY);
